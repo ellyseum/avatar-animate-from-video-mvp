@@ -22,6 +22,8 @@ This is a Docker-based headless Blender microservice with CUDA GPU acceleration 
 ├── auto_rig_and_export.py   # Auto-rigging pipeline script
 ├── retarget_and_export.py   # Animation retargeting script
 ├── pipeline_runner.js       # Node.js orchestration script
+├── docs/
+│   └── TECHNICAL_OVERVIEW.md  # Technical architecture documentation
 └── examples/
     └── script.py            # Example Blender Python script
 ```

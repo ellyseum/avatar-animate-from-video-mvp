@@ -91,6 +91,48 @@ docker run --rm \
     blender-headless --run
 ```
 
+### Auto-Rigging Pipeline
+
+The included `auto_rig_and_export.py` script provides an automated rigging pipeline:
+
+```bash
+# Auto-rig a mesh with basic humanoid skeleton
+docker run --rm \
+    --gpus all \
+    -v $(pwd):/workspace \
+    blender-headless -b --python /workspace/auto_rig_and_export.py -- \
+    --input /workspace/character.obj \
+    --output /workspace/rigged.glb
+
+# With Rigify metarig and custom scale
+docker run --rm \
+    --gpus all \
+    -v $(pwd):/workspace \
+    blender-headless -b --python /workspace/auto_rig_and_export.py -- \
+    --input /workspace/character.fbx \
+    --output /workspace/rigged.fbx \
+    --rig-type metarig \
+    --scale 0.01
+
+# With logging to file
+docker run --rm \
+    --gpus all \
+    -v $(pwd):/workspace \
+    blender-headless -b --python /workspace/auto_rig_and_export.py -- \
+    --input /workspace/mesh.obj \
+    --output /workspace/rigged.glb \
+    --log-file /workspace/rig.log
+```
+
+**Arguments:**
+- `--input, -i` - Input mesh file (.obj, .fbx, .ply, .stl, .glb)
+- `--output, -o` - Output file (.glb, .gltf, .fbx)
+- `--rig-type` - Rig type: `basic` (default), `rigify`, or `metarig`
+- `--scale` - Scale factor for the mesh (default: 1.0)
+- `--cleanup / --no-cleanup` - Run mesh cleanup (default: enabled)
+- `--apply-transforms / --no-apply-transforms` - Apply transforms (default: enabled)
+- `--log-file` - Optional log file path
+
 ### Rendering .blend Files
 
 ```bash

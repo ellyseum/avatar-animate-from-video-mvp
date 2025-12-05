@@ -126,8 +126,9 @@ wget -q https://dl.fbaipublicfiles.com/eft/fairmocap_data/body_module/J_regresso
 # SPIN data
 if [[ ! -d "data_from_spin" ]]; then
     info "Downloading SPIN data..."
-    wget -q http://visiondata.cis.upenn.edu/spin/data.tar.gz 2>/dev/null && \
-    tar -xzf data.tar.gz && rm -f data.tar.gz && \
+    # Note: Despite .tar.gz extension, file is actually uncompressed tar
+    wget -q https://visiondata.cis.upenn.edu/spin/data.tar.gz 2>/dev/null && \
+    tar -xf data.tar.gz && rm -f data.tar.gz && \
     mv data data_from_spin 2>/dev/null || warn "Failed to download SPIN data"
 fi
 

@@ -559,11 +559,12 @@ download_data() {
     # SPIN data
     if [[ ! -d "data_from_spin" ]]; then
         info "Downloading SPIN data..."
-        wget -q http://visiondata.cis.upenn.edu/spin/data.tar.gz || {
+        wget -q https://visiondata.cis.upenn.edu/spin/data.tar.gz || {
             warn "SPIN data download failed. Some features may not work."
         }
         if [[ -f "data.tar.gz" ]]; then
-            tar -xzf data.tar.gz && rm data.tar.gz
+            # Note: Despite .tar.gz extension, file is actually uncompressed tar
+            tar -xf data.tar.gz && rm data.tar.gz
             mv data data_from_spin 2>/dev/null || true
         fi
     fi

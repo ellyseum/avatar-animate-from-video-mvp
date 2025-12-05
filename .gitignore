@@ -33,3 +33,9 @@ coverage/
 dist/
 build/
 output/
+
+# FrankMocap downloaded data
+frankmocap/extra_data/
+frankmocap/sample_data/
+frankmocap/detectors/
+frankmocap/detectron2_build/

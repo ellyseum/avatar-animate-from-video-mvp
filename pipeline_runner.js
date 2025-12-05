@@ -99,6 +99,30 @@ async function createTempWorkspace(jobId) {
 }
 
 /**
+ * Get the directory where the pipeline runner script is located
+ */
+function getScriptDir() {
+    return __dirname;
+}
+
+/**
+ * Copy required pipeline scripts to workspace
+ */
+async function copyPipelineScripts(workspacePath, scripts = ['auto_rig_and_export.py', 'retarget_and_export.py']) {
+    const scriptDir = getScriptDir();
+    for (const script of scripts) {
+        const sourcePath = path.join(scriptDir, script);
+        const destPath = path.join(workspacePath, script);
+        try {
+            await fs.copyFile(sourcePath, destPath);
+            logger.debug(`Copied script ${script} to workspace`);
+        } catch (err) {
+            throw new Error(`Failed to copy script ${script}: ${err.message}`);
+        }
+    }
+}
+
+/**
  * Clean up temporary workspace
  */
 async function cleanupWorkspace(workspacePath) {
@@ -273,6 +297,9 @@ async function runAutoRig(options) {
             throw new Error(`Input mesh not found: ${meshPath}`);
         }
 
+        // Copy pipeline scripts to workspace
+        await copyPipelineScripts(workspacePath, ['auto_rig_and_export.py']);
+
         // Copy mesh to workspace
         const meshFilename = path.basename(meshPath);
         await copyToWorkspace(meshPath, workspacePath, meshFilename);
@@ -386,6 +413,9 @@ async function runRetarget(options) {
         if (!await fileExists(animationPath)) {
             throw new Error(`Animation file not found: ${animationPath}`);
         }
+
+        // Copy pipeline scripts to workspace
+        await copyPipelineScripts(workspacePath, ['retarget_and_export.py']);
 
         // Copy files to workspace
         const targetFilename = path.basename(targetPath);

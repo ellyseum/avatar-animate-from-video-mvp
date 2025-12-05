@@ -1,6 +1,6 @@
 {
   "name": "avatar-animate-from-video-mvp",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Docker-based headless Blender microservice with CUDA GPU support for automated rigging and animation retargeting pipelines.",
   "main": "pipeline_runner.js",
   "bin": {

@@ -2,7 +2,7 @@
 # Integration test script for Blender Headless Microservice
 # Tests the complete pipeline from mesh → rigged → animated
 
-set -e
+# Don't use set -e - we want to continue and show summary even if tests fail
 
 # Colors for output
 RED='\033[0;31m'
@@ -106,13 +106,17 @@ run_test "Container --gpu-info works" \
 # ============================================
 print_header "Test 2: Example Script Execution"
 
+# Copy example script to test workspace
+cp "$PROJECT_DIR/examples/script.py" "$OUTPUT_DIR/script.py"
+print_info "Copied script.py to test workspace"
+
 run_test "Example script creates output" \
     "docker run --rm --gpus all -v '$OUTPUT_DIR:/workspace' blender-headless --run && \
-     [ -f '$OUTPUT_DIR/suzanne.fbx' ] && [ -f '$OUTPUT_DIR/suzanne.glb' ]"
+     [ -f '$OUTPUT_DIR/output/suzanne.fbx' ] && [ -f '$OUTPUT_DIR/output/suzanne.glb' ]"
 
 # Verify output file sizes
-if [ -f "$OUTPUT_DIR/suzanne.glb" ]; then
-    SIZE=$(ls -lh "$OUTPUT_DIR/suzanne.glb" | awk '{print $5}')
+if [ -f "$OUTPUT_DIR/output/suzanne.glb" ]; then
+    SIZE=$(ls -lh "$OUTPUT_DIR/output/suzanne.glb" | awk '{print $5}')
     print_info "Output suzanne.glb size: $SIZE"
 fi
 
@@ -122,7 +126,7 @@ fi
 print_header "Test 3: Auto-Rig Pipeline"
 
 run_test "Auto-rig via pipeline_runner.js" \
-    "node pipeline_runner.js --mesh '$OUTPUT_DIR/suzanne.glb' --output '$OUTPUT_DIR/suzanne_rigged.glb' && \
+    "node pipeline_runner.js --mesh '$OUTPUT_DIR/output/suzanne.glb' --output '$OUTPUT_DIR/suzanne_rigged.glb' && \
      [ -f '$OUTPUT_DIR/suzanne_rigged.glb' ]"
 
 # Verify rigged file is larger (has armature data)
@@ -157,10 +161,14 @@ fi
 # ============================================
 print_header "Test 5: Direct Docker Commands"
 
+# Copy auto_rig script to test workspace for direct Docker test
+cp "$PROJECT_DIR/auto_rig_and_export.py" "$OUTPUT_DIR/auto_rig_and_export.py"
+
 run_test "Direct auto-rig via Docker" \
     "docker run --rm --gpus all -v '$OUTPUT_DIR:/workspace' blender-headless \
-        -b --python /workspace/../auto_rig_and_export.py -- \
-        --input /workspace/suzanne.glb --output /workspace/direct_rigged.glb > /dev/null 2>&1 || true"
+        -b --python /workspace/auto_rig_and_export.py -- \
+        --input /workspace/output/suzanne.glb --output /workspace/direct_rigged.glb > /dev/null 2>&1 && \
+     [ -f '$OUTPUT_DIR/direct_rigged.glb' ]"
 
 # ============================================
 # Test 6: npm Scripts
@@ -174,7 +182,7 @@ run_test "npm run docker:gpu-info" \
     "npm run docker:gpu-info --silent > /dev/null 2>&1"
 
 run_test "npm run pipeline (auto-rig)" \
-    "npm run pipeline --silent -- --mesh '$OUTPUT_DIR/suzanne.glb' --output '$OUTPUT_DIR/npm_rigged.glb' > /dev/null 2>&1 && \
+    "npm run pipeline --silent -- --mesh '$OUTPUT_DIR/output/suzanne.glb' --output '$OUTPUT_DIR/npm_rigged.glb' > /dev/null 2>&1 && \
      [ -f '$OUTPUT_DIR/npm_rigged.glb' ]"
 
 # ============================================

@@ -18,8 +18,10 @@ This is a Docker-based headless Blender microservice with CUDA GPU acceleration 
 ├── Dockerfile               # Main container definition
 ├── entrypoint.sh            # Container entrypoint script
 ├── README.md                # Documentation
+├── package.json             # Node.js project configuration
 ├── auto_rig_and_export.py   # Auto-rigging pipeline script
 ├── retarget_and_export.py   # Animation retargeting script
+├── pipeline_runner.js       # Node.js orchestration script
 └── examples/
     └── script.py            # Example Blender Python script
 ```
@@ -80,6 +82,41 @@ Command-line arguments:
 - `--root-motion` / `--no-root-motion` - Include root motion
 - `--log-file` - Optional log file path
 
+### pipeline_runner.js
+Node.js orchestration script for managing pipeline execution:
+- Creates temporary workspaces and manages file copying
+- Executes Docker commands for auto-rig and retarget pipelines
+- Supports batch processing with configurable concurrency
+- Job queue to prevent resource overload
+- Comprehensive error handling and logging
+- Cleans up temporary data after processing
+
+CLI usage:
+```bash
+# Auto-rig a mesh
+node pipeline_runner.js --mesh character.obj --output rigged.glb
+
+# Retarget animation
+node pipeline_runner.js --mesh avatar.glb --animation motion.bvh --output animated.glb
+
+# Batch processing
+node pipeline_runner.js --batch jobs.json --concurrency 4
+```
+
+Programmatic usage:
+```javascript
+const { runAutoRig, runRetarget, runFullPipeline, runBatch } = require('./pipeline_runner');
+
+// Auto-rig
+const result = await runAutoRig({ meshPath: 'mesh.obj', outputPath: 'rigged.glb' });
+
+// Retarget
+const result = await runRetarget({ targetPath: 'avatar.glb', animationPath: 'motion.bvh', outputPath: 'animated.glb' });
+
+// Full pipeline
+const result = await runFullPipeline({ meshPath: 'mesh.obj', animationPath: 'motion.bvh', outputPath: 'final.glb' });
+```
+
 ### Environment Variables
 - `BLENDER_SCRIPT` - Default script to run (default: `script.py`)
 - `BLENDER_ARGS` - Additional arguments passed to Blender
@@ -89,6 +126,27 @@ Command-line arguments:
 ### Build Command
 ```bash
 docker build -t blender-headless .
+```
+
+### NPM Scripts
+```bash
+# Install dependencies
+npm install
+
+# Build Docker image
+npm run docker:build
+
+# Check GPU
+npm run docker:gpu-info
+
+# Run pipeline
+npm run pipeline -- --mesh mesh.obj --output rigged.glb
+
+# Batch processing
+npm run batch -- jobs.json --concurrency 4
+
+# Lint code
+npm run lint
 ```
 
 ### Run Commands

@@ -1,0 +1,41 @@
+{
+  "name": "avatar-animate-from-video-mvp",
+  "version": "1.0.0",
+  "description": "Docker-based headless Blender microservice with CUDA GPU support for automated rigging and animation retargeting pipelines.",
+  "main": "pipeline_runner.js",
+  "bin": {
+    "pipeline-runner": "./pipeline_runner.js"
+  },
+  "scripts": {
+    "auto-rig": "node pipeline_runner.js --mesh",
+    "retarget": "node pipeline_runner.js --mesh",
+    "pipeline": "node pipeline_runner.js",
+    "batch": "node pipeline_runner.js --batch",
+    "docker:build": "docker build -t blender-headless .",
+    "docker:gpu-info": "docker run --rm --gpus all blender-headless --gpu-info",
+    "docker:shell": "docker run --rm -it --gpus all -v $(pwd):/workspace blender-headless --shell",
+    "docker:version": "docker run --rm blender-headless --version",
+    "test": "node --test tests/",
+    "lint": "eslint *.js"
+  },
+  "keywords": [
+    "blender",
+    "3d",
+    "rigging",
+    "animation",
+    "retargeting",
+    "mocap",
+    "docker",
+    "headless",
+    "gpu",
+    "cuda"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.56.0"
+  }
+}

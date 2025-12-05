@@ -51,6 +51,46 @@ docker build -t blender-headless .
 docker build -t blender-headless:4.2 .
 ```
 
+## Node.js Setup
+
+The project includes a Node.js orchestration layer for managing pipelines:
+
+```bash
+# Install dependencies
+npm install
+
+# Build Docker image
+npm run docker:build
+
+# Check GPU availability
+npm run docker:gpu-info
+```
+
+### NPM Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run docker:build` | Build the Blender Docker image |
+| `npm run docker:gpu-info` | Check GPU/CUDA availability |
+| `npm run docker:shell` | Start interactive shell in container |
+| `npm run docker:version` | Show Blender version |
+| `npm run pipeline -- [args]` | Run pipeline with arguments |
+| `npm run batch -- jobs.json` | Run batch processing |
+| `npm run lint` | Lint JavaScript files |
+
+### Quick Start with NPM
+
+```bash
+# Auto-rig a mesh
+npm run pipeline -- --mesh character.obj --output rigged.glb
+
+# Retarget animation
+npm run pipeline -- --mesh avatar.glb --animation motion.bvh --output animated.glb
+
+# Batch processing
+npm run batch -- jobs.json --concurrency 4
+```
+
 ## Usage
 
 ### Basic Commands
@@ -180,6 +220,46 @@ docker run --rm \
   "mixamorig:Spine": "Spine",
   "mixamorig:LeftArm": "LeftArm"
 }
+```
+
+### Pipeline Orchestration (Node.js)
+
+The `pipeline_runner.js` script provides high-level orchestration:
+
+```bash
+# Auto-rig a mesh
+node pipeline_runner.js --mesh character.obj --output rigged.glb
+
+# Retarget animation to a rigged mesh  
+node pipeline_runner.js --mesh avatar.glb --animation motion.bvh --output animated.glb
+
+# Full pipeline (raw mesh + animation → animated mesh)
+node pipeline_runner.js --mesh raw_mesh.obj --animation dance.bvh --output final.glb
+
+# Batch processing with concurrency control
+node pipeline_runner.js --batch jobs.json --concurrency 4
+```
+
+**Batch Job Format (jobs.json):**
+```json
+[
+  { "type": "auto-rig", "meshPath": "mesh1.obj", "outputPath": "rigged1.glb" },
+  { "type": "retarget", "targetPath": "avatar.glb", "animationPath": "walk.bvh", "outputPath": "walk.glb" },
+  { "type": "full", "meshPath": "mesh.obj", "animationPath": "dance.bvh", "outputPath": "animated.glb" }
+]
+```
+
+**Programmatic Usage:**
+```javascript
+const { runAutoRig, runRetarget, runFullPipeline } = require('./pipeline_runner');
+
+const result = await runAutoRig({
+  meshPath: 'character.obj',
+  outputPath: 'rigged.glb',
+  rigType: 'basic'
+});
+console.log(result.success ? `Output: ${result.outputPath}` : `Error: ${result.error}`);
+```
 ```
 
 ### Rendering .blend Files

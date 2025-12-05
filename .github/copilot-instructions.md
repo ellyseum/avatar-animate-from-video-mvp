@@ -304,7 +304,7 @@ def setup_gpu():
 bpy.ops.export_scene.fbx(
     filepath="/workspace/output.fbx",
     use_selection=True,
-    apply_modifiers=True
+    apply_scale_options='FBX_SCALE_ALL'
 )
 
 # glTF/GLB Export

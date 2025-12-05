@@ -173,10 +173,11 @@ def export_fbx(obj, filepath):
     obj.select_set(True)
     bpy.context.view_layer.objects.active = obj
     
+    # Note: apply_modifiers was removed in Blender 4.x
+    # Use apply_scale_options and mesh_smooth_type instead
     bpy.ops.export_scene.fbx(
         filepath=str(filepath),
         use_selection=True,
-        apply_modifiers=True,
         apply_scale_options='FBX_SCALE_ALL',
         path_mode='COPY',
         embed_textures=True,

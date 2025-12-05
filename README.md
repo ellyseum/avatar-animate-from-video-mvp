@@ -359,10 +359,11 @@ def create_example_mesh():
 
 def export_fbx(filepath):
     """Export selected objects to FBX."""
+    # Note: apply_modifiers was removed in Blender 4.x
     bpy.ops.export_scene.fbx(
         filepath=filepath,
         use_selection=True,
-        apply_modifiers=True,
+        apply_scale_options='FBX_SCALE_ALL',
         path_mode='COPY',
         embed_textures=True
     )

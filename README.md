@@ -423,4 +423,81 @@ The `apply_modifiers` parameter was removed in Blender 4.x FBX export. Use `appl
 
 ## License
 
-This Dockerfile and associated scripts are provided as-is. Blender is licensed under the GPL.
+This project is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)** for non-commercial research purposes only.
+
+See the [LICENSE](LICENSE) file for details.
+
+### Third-Party Licenses
+
+- **Blender**: GPL
+- **FrankMocap**: CC-BY-NC 4.0 (Facebook Research)
+- **SMPL/SMPL-X models**: Separate license required from https://smpl.is.tue.mpg.de/
+- **Detectron2**: Apache 2.0 (Facebook Research)
+
+## Research Attributions
+
+This project builds upon the following research works. If you use this software in your research, please cite the original papers:
+
+<details>
+<summary>BibTeX Citations</summary>
+
+```bibtex
+@inproceedings{rong2021frankmocap,
+  title={FrankMocap: A Monocular 3D Whole-Body Pose Estimation System},
+  author={Rong, Yu and Shiratori, Takaaki and Joo, Hanbyul},
+  booktitle={IEEE International Conference on Computer Vision Workshops},
+  year={2021}
+}
+
+@article{SMPL:2015,
+  author = {Loper, Matthew and Mahmood, Naureen and Romero, Javier and 
+            Pons-Moll, Gerard and Black, Michael J.},
+  title = {{SMPL}: A Skinned Multi-Person Linear Model},
+  journal = {ACM Trans. Graphics (Proc. SIGGRAPH Asia)},
+  volume = {34},
+  number = {6},
+  pages = {248:1--248:16},
+  year = {2015}
+}
+
+@inproceedings{SMPL-X:2019,
+  title = {Expressive Body Capture: {3D} Hands, Face, and Body from a Single Image},
+  author = {Pavlakos, Georgios and Choutas, Vasileios and Ghorbani, Nima and 
+            Bolkart, Timo and Osman, Ahmed A. A. and Tzionas, Dimitrios and 
+            Black, Michael J.},
+  booktitle = {Proceedings IEEE Conf. on Computer Vision and Pattern Recognition (CVPR)},
+  year = {2019}
+}
+
+@inproceedings{joo2020eft,
+  title={Exemplar Fine-Tuning for 3D Human Model Fitting Towards In-the-Wild 3D Human Pose Estimation},
+  author={Joo, Hanbyul and Neverova, Natalia and Vedaldi, Andrea},
+  booktitle={3DV},
+  year={2020}
+}
+
+@inproceedings{osokin2018lightweight,
+  title={Real-time 2D Multi-Person Pose Estimation on CPU: Lightweight OpenPose},
+  author={Osokin, Daniil},
+  booktitle={ICPRAM},
+  year={2018}
+}
+
+@inproceedings{shan2020understanding,
+  title={Understanding Human Hands in Contact at Internet Scale},
+  author={Shan, Dandan and Geng, Jiaqi and Shu, Michelle and Fouhey, David F.},
+  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
+  pages={9869--9878},
+  year={2020}
+}
+
+@misc{wu2019detectron2,
+  author = {Yuxin Wu and Alexander Kirillov and Francisco Massa and 
+            Wan-Yen Lo and Ross Girshick},
+  title = {Detectron2},
+  howpublished = {\url{https://github.com/facebookresearch/detectron2}},
+  year = {2019}
+}
+```
+
+</details>

@@ -248,6 +248,53 @@ docker run --rm --gpus all -v $(pwd):/workspace blender-headless --run
 
 This project includes a build script for [FrankMocap](https://github.com/facebookresearch/frankmocap), a 3D human pose estimation system. The build script has been updated to work with modern GPUs (RTX 40xx, 50xx, Blackwell architecture) even though the original repository was archived in October 2023.
 
+### FrankMocap Docker Container
+
+A ready-to-use Docker container for headless GPU-based motion capture inference:
+
+```bash
+# Build the container (from project root)
+docker build -t frankmocap-gpu -f frankmocap/Dockerfile .
+
+# Check GPU availability
+docker run --rm --gpus all frankmocap-gpu --gpu-info
+
+# Process a single video (body only)
+docker run --rm --gpus all \
+  -v /path/to/videos:/workspace/input \
+  -v /path/to/output:/workspace/output \
+  -v /path/to/smpl_models:/opt/frankmocap/extra_data/smpl \
+  frankmocap-gpu \
+  --input_path /workspace/input/video.mp4 \
+  --out_dir /workspace/output
+
+# Batch process a directory (full body+hands)
+docker run --rm --gpus all \
+  -v /path/to/videos:/workspace/input \
+  -v /path/to/output:/workspace/output \
+  -v /path/to/smpl_models:/opt/frankmocap/extra_data/smpl \
+  frankmocap-gpu \
+  --input_dir /workspace/input \
+  --out_dir /workspace/output \
+  --mode full
+
+# Export mesh data with predictions
+docker run --rm --gpus all \
+  -v /path/to/videos:/workspace/input \
+  -v /path/to/output:/workspace/output \
+  -v /path/to/smpl_models:/opt/frankmocap/extra_data/smpl \
+  frankmocap-gpu \
+  --input_path /workspace/input/dance.mp4 \
+  --out_dir /workspace/output \
+  --save_mesh --save_pred_pkl
+```
+
+**Container specifications:**
+- Base image: `nvidia/cuda:12.8.0-cudnn-devel-ubuntu22.04`
+- PyTorch: 2.10+ nightly with CUDA 12.8 (Blackwell/RTX 50 series support)
+- Image size: ~36GB
+- Supports: body, hand, and full (body+hands) motion capture modes
+
 ### Building FrankMocap
 
 ```bash

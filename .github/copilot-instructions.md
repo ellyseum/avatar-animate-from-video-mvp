@@ -28,6 +28,10 @@ This is a Docker-based headless Blender microservice with CUDA GPU acceleration 
 │   └── copilot-instructions.md  # This file (developer context)
 ├── docs/
 │   └── TECHNICAL_OVERVIEW.md    # Technical architecture
+├── frankmocap/
+│   ├── Dockerfile               # FrankMocap GPU container (36GB image)
+│   ├── build_frankmocap_docker.sh  # Docker build script
+│   └── entrypoint_frankmocap.sh    # Container entrypoint
 ├── scripts/
 │   ├── bootstrap.sh         # Environment setup and validation
 │   └── test-pipeline.sh     # Integration test suite
@@ -161,6 +165,55 @@ Usage:
 - OpenGL rendering on headless servers → xvfb or pytorch3d renderer
 - Detectron2 pre-built wheels unavailable → Build from source
 
+### frankmocap/Dockerfile
+FrankMocap Docker container for headless GPU-based motion capture inference:
+- Base image: `nvidia/cuda:12.8.0-cudnn-devel-ubuntu22.04`
+- PyTorch: 2.10+ nightly with CUDA 12.8 (cu128) for Blackwell/RTX 50 series
+- Image size: ~36GB
+- Uses `build_frankmocap_docker.sh` for installation
+- Headless rendering via xvfb and OSMesa
+
+**Build and run:**
+```bash
+# Build (from project root)
+docker build -t frankmocap-gpu -f frankmocap/Dockerfile .
+
+# Check GPU
+docker run --rm --gpus all frankmocap-gpu --gpu-info
+
+# Run inference
+docker run --rm --gpus all \
+  -v /path/to/videos:/workspace/input \
+  -v /path/to/output:/workspace/output \
+  -v /path/to/smpl_models:/opt/frankmocap/extra_data/smpl \
+  frankmocap-gpu \
+  --input_path /workspace/input/video.mp4 \
+  --out_dir /workspace/output
+```
+
+### frankmocap/entrypoint_frankmocap.sh
+Container entrypoint script providing:
+- `--help` - Show usage information
+- `--version` - Show version info (PyTorch, CUDA)
+- `--gpu-info` - Check GPU/CUDA availability
+- `--shell` - Start interactive bash shell
+- `--input_path FILE` - Process single video/image
+- `--input_dir DIR` - Batch process directory
+- `--out_dir DIR` - Output directory (default: /workspace/output)
+- `--mode MODE` - Inference mode: body, hand, or full
+- `--save_pred_pkl` - Save prediction as pickle
+- `--save_mesh` - Save 3D mesh outputs
+
+### frankmocap/build_frankmocap_docker.sh
+Docker-adapted build script that:
+- Installs PyTorch nightly with CUDA 12.8 for Blackwell support
+- Clones ellyseum/frankmocap fork with PyTorch 2.x fixes
+- Installs Detectron2 from source
+- Downloads pretrained models (body + hand modules)
+- Installs third-party detectors
+- Applies compatibility patches
+- Creates SMPL placeholder directory
+
 ### scripts/bootstrap.sh
 Environment setup script that:
 - Checks prerequisites (Docker, Node.js, nvidia-smi)
@@ -213,13 +266,20 @@ npm run pipeline -- --mesh input.obj --output output/rigged.glb
 npm run pipeline -- --mesh output/rigged.glb --animation motion.bvh --output output/animated.glb
 ```
 
-## Tested Workflow (Validated Dec 4, 2025)
+## Tested Workflow (Validated Dec 5, 2025)
 
-The following workflow has been validated end-to-end:
+The following workflows have been validated end-to-end:
 
+### Blender Pipeline
 1. **Example script execution**: Creates `suzanne.fbx` (395KB) and `suzanne.glb` (402KB)
 2. **Auto-rig**: Generates `suzanne_rigged.glb` (1.18MB) with 23-bone humanoid armature
 3. **Retarget**: Produces `suzanne_animated.glb` (1.22MB) with 29 frames, 230 f-curves
+
+### FrankMocap Container (Validated Dec 5, 2025)
+- **Image build**: Successfully builds 36.3GB container in ~18 minutes
+- **GPU detection**: Correctly detects RTX 5080 (Blackwell, Compute Capability 12.0)
+- **PyTorch**: 2.10.0.dev nightly with CUDA 12.8, cuDNN 91002
+- **Container commands**: --help, --version, --gpu-info all working
 
 ## Direct Docker Commands
 

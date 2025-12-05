@@ -133,6 +133,55 @@ docker run --rm \
 - `--apply-transforms / --no-apply-transforms` - Apply transforms (default: enabled)
 - `--log-file` - Optional log file path
 
+### Animation Retargeting Pipeline
+
+The `retarget_and_export.py` script retargets motion capture animation to a rigged avatar:
+
+```bash
+# Retarget BVH mocap to avatar
+docker run --rm \
+    --gpus all \
+    -v $(pwd):/workspace \
+    blender-headless -b --python /workspace/retarget_and_export.py -- \
+    --target /workspace/avatar.glb \
+    --source /workspace/motion.bvh \
+    --output /workspace/animated_avatar.glb
+
+# With custom bone mapping and frame range
+docker run --rm \
+    --gpus all \
+    -v $(pwd):/workspace \
+    blender-headless -b --python /workspace/retarget_and_export.py -- \
+    --target /workspace/avatar.fbx \
+    --source /workspace/mocap.fbx \
+    --output /workspace/animated.glb \
+    --mapping /workspace/bone_mapping.json \
+    --start-frame 0 \
+    --end-frame 300 \
+    --fps 60
+```
+
+**Arguments:**
+- `--target, -t` - Target rigged mesh file (.glb, .gltf, .fbx)
+- `--source, -s` - Source animation file (.bvh, .glb, .gltf, .fbx)
+- `--output, -o` - Output file (.glb, .gltf, .fbx)
+- `--mapping, -m` - Optional JSON file with bone name mapping
+- `--start-frame` - Start frame (default: auto-detect)
+- `--end-frame` - End frame (default: auto-detect)
+- `--fps` - Frames per second (default: 30)
+- `--scale` - Scale factor for source animation (default: 1.0)
+- `--root-motion / --no-root-motion` - Include root translation (default: enabled)
+- `--log-file` - Optional log file path
+
+**Custom Bone Mapping (JSON):**
+```json
+{
+  "mixamorig:Hips": "Hips",
+  "mixamorig:Spine": "Spine",
+  "mixamorig:LeftArm": "LeftArm"
+}
+```
+
 ### Rendering .blend Files
 
 ```bash

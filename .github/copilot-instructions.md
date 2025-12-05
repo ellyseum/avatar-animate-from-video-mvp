@@ -15,12 +15,13 @@ This is a Docker-based headless Blender microservice with CUDA GPU acceleration 
 
 ```
 .
-├── Dockerfile              # Main container definition
-├── entrypoint.sh           # Container entrypoint script
-├── README.md               # Documentation
-├── auto_rig_and_export.py  # Auto-rigging pipeline script
+├── Dockerfile               # Main container definition
+├── entrypoint.sh            # Container entrypoint script
+├── README.md                # Documentation
+├── auto_rig_and_export.py   # Auto-rigging pipeline script
+├── retarget_and_export.py   # Animation retargeting script
 └── examples/
-    └── script.py           # Example Blender Python script
+    └── script.py            # Example Blender Python script
 ```
 
 ## Key Files
@@ -57,6 +58,26 @@ Command-line arguments:
 - `--scale` - Scale factor for the mesh (default: 1.0)
 - `--cleanup` / `--no-cleanup` - Run mesh cleanup operations
 - `--apply-transforms` / `--no-apply-transforms` - Apply transforms before rigging
+- `--log-file` - Optional log file path
+
+### retarget_and_export.py
+Animation retargeting script that:
+- Imports a rigged target mesh (avatar)
+- Imports source animation (BVH, glTF, FBX)
+- Retargets animation using bone name mapping
+- Bakes animation to target skeleton
+- Exports animated mesh with skeleton
+
+Command-line arguments:
+- `--target, -t` - Target rigged mesh file (required)
+- `--source, -s` - Source animation file (required)
+- `--output, -o` - Output file path (required)
+- `--mapping, -m` - Optional JSON file with bone name mapping
+- `--start-frame` - Start frame for baking (default: auto-detect)
+- `--end-frame` - End frame for baking (default: auto-detect)
+- `--fps` - Frames per second (default: 30)
+- `--scale` - Scale factor for source animation (default: 1.0)
+- `--root-motion` / `--no-root-motion` - Include root motion
 - `--log-file` - Optional log file path
 
 ### Environment Variables
@@ -160,6 +181,41 @@ docker run --rm --gpus all -v $(pwd):/workspace blender-headless \
 # Run Python expression
 docker run --rm --gpus all blender-headless \
     -b --python-expr "import bpy; print(bpy.app.version_string)"
+```
+
+### Example 8: Retarget Animation to Avatar
+Apply mocap animation from a BVH file to a rigged avatar:
+```bash
+docker run --rm --gpus all -v $(pwd):/workspace blender-headless \
+    -b --python /workspace/retarget_and_export.py -- \
+    --target /workspace/avatar.glb \
+    --source /workspace/motion.bvh \
+    --output /workspace/animated_avatar.glb
+```
+
+### Example 9: Retarget with Custom Bone Mapping
+Use a custom JSON mapping file for non-standard bone names:
+```bash
+docker run --rm --gpus all -v $(pwd):/workspace blender-headless \
+    -b --python /workspace/retarget_and_export.py -- \
+    --target /workspace/avatar.fbx \
+    --source /workspace/mocap.fbx \
+    --output /workspace/animated.fbx \
+    --mapping /workspace/bone_mapping.json \
+    --fps 60
+```
+
+### Example 10: Retarget with Frame Range
+Retarget only a specific frame range:
+```bash
+docker run --rm --gpus all -v $(pwd):/workspace blender-headless \
+    -b --python /workspace/retarget_and_export.py -- \
+    --target /workspace/avatar.glb \
+    --source /workspace/long_animation.bvh \
+    --output /workspace/clip.glb \
+    --start-frame 100 \
+    --end-frame 200 \
+    --no-root-motion
 ```
 
 ## Writing Blender Python Scripts

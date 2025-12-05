@@ -776,10 +776,23 @@ def log_summary(source_armature, target_armature, bone_mapping,
     logger.info(f"Target Mesh: {input_target}")
     logger.info(f"Output: {output_path}")
     logger.info("-" * 60)
-    logger.info(f"Source Armature: {source_armature.name if source_armature else 'N/A'}")
-    logger.info(f"Source Bones: {len(source_armature.data.bones) if source_armature else 0}")
-    logger.info(f"Target Armature: {target_armature.name if target_armature else 'N/A'}")
-    logger.info(f"Target Bones: {len(target_armature.data.bones) if target_armature else 0}")
+    # Handle case where source armature may have been deleted during cleanup
+    try:
+        source_name = source_armature.name if source_armature else 'N/A'
+        source_bones = len(source_armature.data.bones) if source_armature else 0
+    except ReferenceError:
+        source_name = 'N/A (deleted)'
+        source_bones = 0
+    try:
+        target_name = target_armature.name if target_armature else 'N/A'
+        target_bones = len(target_armature.data.bones) if target_armature else 0
+    except ReferenceError:
+        target_name = 'N/A (deleted)'
+        target_bones = 0
+    logger.info(f"Source Armature: {source_name}")
+    logger.info(f"Source Bones: {source_bones}")
+    logger.info(f"Target Armature: {target_name}")
+    logger.info(f"Target Bones: {target_bones}")
     logger.info(f"Mapped Bones: {len(bone_mapping)}")
     logger.info("-" * 60)
     logger.info(f"Frame Range: {start_frame} - {end_frame}")

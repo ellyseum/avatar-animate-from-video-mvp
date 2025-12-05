@@ -23,6 +23,7 @@ This is a Docker-based headless Blender microservice with CUDA GPU acceleration 
 ├── pipeline_runner.js       # Node.js orchestration script
 ├── auto_rig_and_export.py   # Auto-rigging Blender script
 ├── retarget_and_export.py   # Animation retargeting Blender script
+├── build_frankmocap.sh      # FrankMocap build script for modern GPUs
 ├── .github/
 │   └── copilot-instructions.md  # This file (developer context)
 ├── docs/
@@ -126,6 +127,39 @@ Command-line arguments:
 - `--scale` - Scale factor for source animation (default: 1.0)
 - `--root-motion` / `--no-root-motion` - Include root motion
 - `--log-file` - Optional log file path
+
+### build_frankmocap.sh
+FrankMocap build script for modern GPUs (RTX 40xx/50xx/Blackwell):
+- Clones the official FrankMocap repository (archived Oct 2023)
+- Detects GPU/CUDA version via nvidia-smi
+- Installs PyTorch 2.x with compatible CUDA version
+- Applies compatibility patches for Python 3.10+ and modern PyTorch
+- Installs Detectron2 and PyTorch3D from source for hand detection
+- Downloads pretrained models and sample data
+- Provides CPU fallback if GPU fails
+- Creates wrapper script with TF32 optimization for Ampere+ GPUs
+
+Usage:
+```bash
+# Full installation with GPU support
+./build_frankmocap.sh
+
+# Install in custom directory
+./build_frankmocap.sh --install-dir /path/to/frankmocap
+
+# Body module only (fewer dependencies)
+./build_frankmocap.sh --body-only
+
+# CPU-only mode (no GPU required)
+./build_frankmocap.sh --cpu-only
+```
+
+**Known Issues Addressed:**
+- Legacy CUDA 10.1/PyTorch 1.6 → Updated to CUDA 12.x/PyTorch 2.x
+- Python 3.7 requirement → Patched for Python 3.10+
+- Deprecated numpy/scipy APIs → Automatic code patches
+- OpenGL rendering on headless servers → xvfb or pytorch3d renderer
+- Detectron2 pre-built wheels unavailable → Build from source
 
 ### scripts/bootstrap.sh
 Environment setup script that:

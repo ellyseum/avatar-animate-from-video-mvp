@@ -244,6 +244,67 @@ docker run --rm --gpus all -v $(pwd):/workspace blender-headless --run
 - **STL** (`.stl`) - `bpy.ops.wm.stl_export()`
 - **PLY** (`.ply`) - `bpy.ops.wm.ply_export()`
 
+## FrankMocap Integration
+
+This project includes a build script for [FrankMocap](https://github.com/facebookresearch/frankmocap), a 3D human pose estimation system. The build script has been updated to work with modern GPUs (RTX 40xx, 50xx, Blackwell architecture) even though the original repository was archived in October 2023.
+
+### Building FrankMocap
+
+```bash
+# Full installation with GPU support
+./build_frankmocap.sh
+
+# Install in custom directory
+./build_frankmocap.sh --install-dir /path/to/frankmocap
+
+# Body module only (fewer dependencies)
+./build_frankmocap.sh --body-only
+
+# CPU-only mode (no GPU required)
+./build_frankmocap.sh --cpu-only
+```
+
+### What the Build Script Handles
+
+- **GPU/CUDA Detection**: Automatically detects your GPU and CUDA version
+- **Modern PyTorch**: Installs PyTorch 2.x with appropriate CUDA support
+- **Compatibility Patches**: Fixes deprecated APIs for Python 3.10+ and numpy 2.x
+- **Detectron2**: Builds from source for hand detection
+- **PyTorch3D**: Builds from source for rendering
+- **CPU Fallback**: Gracefully falls back to CPU if GPU fails
+- **Headless Rendering**: Supports xvfb or pytorch3d for servers without displays
+
+### Running FrankMocap
+
+After installation:
+
+```bash
+# Activate conda environment
+conda activate frankmocap
+cd frankmocap
+
+# Body motion capture
+python run_frankmocap.py body --input_path ./sample_data/han_short.mp4 --out_dir ./output
+
+# Hand motion capture
+python run_frankmocap.py hand --input_path ./sample_data/han_hand_short.mp4 --out_dir ./output
+
+# Full body + hands
+python run_frankmocap.py full --input_path ./sample_data/han_short.mp4 --out_dir ./output
+
+# Headless mode (on servers without display)
+xvfb-run -a python run_frankmocap.py body --input_path ./sample_data/han_short.mp4 --out_dir ./output
+```
+
+### SMPL/SMPLX Models
+
+FrankMocap requires SMPL and SMPLX body models which must be downloaded manually:
+
+1. **SMPL**: Download from https://smplify.is.tue.mpg.de/ (registration required)
+2. **SMPLX**: Download from https://smpl-x.is.tue.mpg.de/ (registration required)
+
+See `frankmocap/DOWNLOAD_SMPL_MODELS.md` for detailed instructions.
+
 ## Troubleshooting
 
 ### GPU Not Detected
@@ -303,6 +364,7 @@ The `apply_modifiers` parameter was removed in Blender 4.x FBX export. Use `appl
 ├── pipeline_runner.js       # Node.js orchestration
 ├── auto_rig_and_export.py   # Auto-rigging script
 ├── retarget_and_export.py   # Animation retargeting script
+├── build_frankmocap.sh      # FrankMocap build for modern GPUs
 ├── scripts/
 │   ├── bootstrap.sh         # Environment setup
 │   └── test-pipeline.sh     # Integration tests

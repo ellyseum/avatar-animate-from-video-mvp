@@ -7,15 +7,14 @@
     "pipeline-runner": "./pipeline_runner.js"
   },
   "scripts": {
-    "auto-rig": "node pipeline_runner.js --mesh",
-    "retarget": "node pipeline_runner.js --mesh",
+    "bootstrap": "./scripts/bootstrap.sh",
     "pipeline": "node pipeline_runner.js",
     "batch": "node pipeline_runner.js --batch",
     "docker:build": "docker build -t blender-headless .",
     "docker:gpu-info": "docker run --rm --gpus all blender-headless --gpu-info",
     "docker:shell": "docker run --rm -it --gpus all -v $(pwd):/workspace blender-headless --shell",
     "docker:version": "docker run --rm blender-headless --version",
-    "test": "node --test tests/",
+    "test": "./scripts/test-pipeline.sh",
     "lint": "eslint *.js"
   },
   "keywords": [

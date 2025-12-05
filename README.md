@@ -5,11 +5,12 @@ A Docker-based headless Blender microservice with CUDA GPU acceleration support.
 ## Features
 
 - **Ubuntu 22.04 LTS** base with NVIDIA CUDA 12.2 runtime
-- **Blender 4.2 LTS** (latest stable) with full Python API (`bpy`) support
-- **GPU acceleration** via CUDA for Cycles rendering
-- **Headless operation** - no display required
-- **Flexible scripting** - run custom Python scripts with Blender's API
-- **Volume mounting** - input/output through a shared workspace directory
+- **Blender 4.2.3 LTS** with full Python API (`bpy`) and bundled Python 3.11
+- **GPU acceleration** via CUDA for Cycles rendering (tested with RTX 5080)
+- **Auto-rigging pipeline** - Add humanoid skeleton to meshes automatically
+- **Animation retargeting** - Apply mocap animations to rigged avatars
+- **Node.js orchestration** - npm scripts for easy pipeline management
+- **Headless operation** - No display required
 
 ## Prerequisites
 
@@ -19,6 +20,7 @@ A Docker-based headless Blender microservice with CUDA GPU acceleration support.
 2. **NVIDIA Driver** (version 525+ recommended for CUDA 12.x)
 3. **Docker** (version 19.03+)
 4. **NVIDIA Container Toolkit** installed and configured
+5. **Node.js 18+** and npm
 
 ### Installing NVIDIA Container Toolkit
 
@@ -38,209 +40,83 @@ Verify GPU is accessible in Docker:
 docker run --rm --gpus all nvidia/cuda:12.2.0-runtime-ubuntu22.04 nvidia-smi
 ```
 
-## Building the Container
+## Quick Start
 
 ```bash
-# Clone or navigate to this directory
-cd /path/to/avatar-animate-from-video-mvp
+# 1. Clone and enter the directory
+cd avatar-animate-from-video-mvp
 
-# Build the Docker image
-docker build -t blender-headless .
+# 2. Bootstrap environment (installs deps, builds Docker image, tests GPU)
+npm run bootstrap
 
-# Or with a specific tag
-docker build -t blender-headless:4.2 .
+# 3. Run tests to validate everything works
+npm test
+
+# 4. Auto-rig a mesh
+npm run pipeline -- --mesh input.obj --output output/rigged.glb
+
+# 5. Retarget animation to rigged mesh
+npm run pipeline -- --mesh output/rigged.glb --animation motion.bvh --output output/animated.glb
 ```
 
-## Node.js Setup
-
-The project includes a Node.js orchestration layer for managing pipelines:
-
-```bash
-# Install dependencies
-npm install
-
-# Build Docker image
-npm run docker:build
-
-# Check GPU availability
-npm run docker:gpu-info
-```
-
-### NPM Scripts
+## NPM Scripts
 
 | Script | Description |
 |--------|-------------|
+| `npm run bootstrap` | Set up environment and build Docker image |
+| `npm run pipeline -- [args]` | Run auto-rig or retarget pipeline |
+| `npm run batch -- jobs.json` | Run batch processing |
 | `npm run docker:build` | Build the Blender Docker image |
 | `npm run docker:gpu-info` | Check GPU/CUDA availability |
 | `npm run docker:shell` | Start interactive shell in container |
 | `npm run docker:version` | Show Blender version |
-| `npm run pipeline -- [args]` | Run pipeline with arguments |
-| `npm run batch -- jobs.json` | Run batch processing |
+| `npm test` | Run integration test suite |
 | `npm run lint` | Lint JavaScript files |
 
-### Quick Start with NPM
+## Pipeline Usage
+
+### Auto-Rig a Mesh
+
+Add a humanoid skeleton to any mesh:
 
 ```bash
-# Auto-rig a mesh
 npm run pipeline -- --mesh character.obj --output rigged.glb
+```
 
-# Retarget animation
+Options:
+- `--rig-type basic|rigify|metarig` - Type of rig (default: basic with 23 bones)
+- `--scale 0.01` - Scale factor for the mesh
+
+### Retarget Animation
+
+Apply mocap animation to a rigged mesh:
+
+```bash
 npm run pipeline -- --mesh avatar.glb --animation motion.bvh --output animated.glb
+```
 
-# Batch processing
+Options:
+- `--fps 30` - Frames per second
+- `--mapping bone_map.json` - Custom bone name mapping
+- `--no-root-motion` - Disable root translation
+
+### Full Pipeline
+
+Mesh without rig + animation → animated mesh (auto-detects need for rigging):
+
+```bash
+npm run pipeline -- --mesh raw_mesh.obj --animation dance.bvh --output final.glb
+```
+
+### Batch Processing
+
+Process multiple files with concurrency control:
+
+```bash
 npm run batch -- jobs.json --concurrency 4
 ```
 
-## Usage
-
-### Basic Commands
-
-```bash
-# Show help
-docker run --rm blender-headless --help
-
-# Show Blender version
-docker run --rm blender-headless --version
-
-# Check GPU availability and Blender GPU detection
-docker run --rm --gpus all blender-headless --gpu-info
-```
-
-### Running Python Scripts
-
-The primary use case is running Python scripts that use Blender's API:
-
-```bash
-# Run the default script (script.py) from mounted workspace
-docker run --rm \
-    --gpus all \
-    -v $(pwd):/workspace \
-    blender-headless --run
-
-# Run a specific script
-docker run --rm \
-    --gpus all \
-    -v $(pwd):/workspace \
-    blender-headless --script my_script.py
-
-# Pass additional arguments to Blender
-docker run --rm \
-    --gpus all \
-    -v $(pwd):/workspace \
-    -e BLENDER_ARGS="--debug-python" \
-    blender-headless --run
-```
-
-### Auto-Rigging Pipeline
-
-The included `auto_rig_and_export.py` script provides an automated rigging pipeline:
-
-```bash
-# Auto-rig a mesh with basic humanoid skeleton
-docker run --rm \
-    --gpus all \
-    -v $(pwd):/workspace \
-    blender-headless -b --python /workspace/auto_rig_and_export.py -- \
-    --input /workspace/character.obj \
-    --output /workspace/rigged.glb
-
-# With Rigify metarig and custom scale
-docker run --rm \
-    --gpus all \
-    -v $(pwd):/workspace \
-    blender-headless -b --python /workspace/auto_rig_and_export.py -- \
-    --input /workspace/character.fbx \
-    --output /workspace/rigged.fbx \
-    --rig-type metarig \
-    --scale 0.01
-
-# With logging to file
-docker run --rm \
-    --gpus all \
-    -v $(pwd):/workspace \
-    blender-headless -b --python /workspace/auto_rig_and_export.py -- \
-    --input /workspace/mesh.obj \
-    --output /workspace/rigged.glb \
-    --log-file /workspace/rig.log
-```
-
-**Arguments:**
-- `--input, -i` - Input mesh file (.obj, .fbx, .ply, .stl, .glb)
-- `--output, -o` - Output file (.glb, .gltf, .fbx)
-- `--rig-type` - Rig type: `basic` (default), `rigify`, or `metarig`
-- `--scale` - Scale factor for the mesh (default: 1.0)
-- `--cleanup / --no-cleanup` - Run mesh cleanup (default: enabled)
-- `--apply-transforms / --no-apply-transforms` - Apply transforms (default: enabled)
-- `--log-file` - Optional log file path
-
-### Animation Retargeting Pipeline
-
-The `retarget_and_export.py` script retargets motion capture animation to a rigged avatar:
-
-```bash
-# Retarget BVH mocap to avatar
-docker run --rm \
-    --gpus all \
-    -v $(pwd):/workspace \
-    blender-headless -b --python /workspace/retarget_and_export.py -- \
-    --target /workspace/avatar.glb \
-    --source /workspace/motion.bvh \
-    --output /workspace/animated_avatar.glb
-
-# With custom bone mapping and frame range
-docker run --rm \
-    --gpus all \
-    -v $(pwd):/workspace \
-    blender-headless -b --python /workspace/retarget_and_export.py -- \
-    --target /workspace/avatar.fbx \
-    --source /workspace/mocap.fbx \
-    --output /workspace/animated.glb \
-    --mapping /workspace/bone_mapping.json \
-    --start-frame 0 \
-    --end-frame 300 \
-    --fps 60
-```
-
-**Arguments:**
-- `--target, -t` - Target rigged mesh file (.glb, .gltf, .fbx)
-- `--source, -s` - Source animation file (.bvh, .glb, .gltf, .fbx)
-- `--output, -o` - Output file (.glb, .gltf, .fbx)
-- `--mapping, -m` - Optional JSON file with bone name mapping
-- `--start-frame` - Start frame (default: auto-detect)
-- `--end-frame` - End frame (default: auto-detect)
-- `--fps` - Frames per second (default: 30)
-- `--scale` - Scale factor for source animation (default: 1.0)
-- `--root-motion / --no-root-motion` - Include root translation (default: enabled)
-- `--log-file` - Optional log file path
-
-**Custom Bone Mapping (JSON):**
-```json
-{
-  "mixamorig:Hips": "Hips",
-  "mixamorig:Spine": "Spine",
-  "mixamorig:LeftArm": "LeftArm"
-}
-```
-
-### Pipeline Orchestration (Node.js)
-
-The `pipeline_runner.js` script provides high-level orchestration:
-
-```bash
-# Auto-rig a mesh
-node pipeline_runner.js --mesh character.obj --output rigged.glb
-
-# Retarget animation to a rigged mesh  
-node pipeline_runner.js --mesh avatar.glb --animation motion.bvh --output animated.glb
-
-# Full pipeline (raw mesh + animation → animated mesh)
-node pipeline_runner.js --mesh raw_mesh.obj --animation dance.bvh --output final.glb
-
-# Batch processing with concurrency control
-node pipeline_runner.js --batch jobs.json --concurrency 4
-```
-
-**Batch Job Format (jobs.json):**
+**jobs.json format:**
 ```json
 [
   { "type": "auto-rig", "meshPath": "mesh1.obj", "outputPath": "rigged1.glb" },
@@ -249,221 +125,126 @@ node pipeline_runner.js --batch jobs.json --concurrency 4
 ]
 ```
 
-**Programmatic Usage:**
-```javascript
-const { runAutoRig, runRetarget, runFullPipeline } = require('./pipeline_runner');
+## Direct Docker Commands
 
+For advanced usage or custom scripts:
+
+```bash
+# Run default script with GPU
+docker run --rm --gpus all -v $(pwd):/workspace blender-headless --run
+
+# Run specific script
+docker run --rm --gpus all -v $(pwd):/workspace blender-headless --script my_script.py
+
+# Check GPU availability
+docker run --rm --gpus all blender-headless --gpu-info
+
+# Interactive shell for debugging
+docker run --rm -it --gpus all -v $(pwd):/workspace blender-headless --shell
+
+# Auto-rig directly
+docker run --rm --gpus all -v $(pwd):/workspace blender-headless \
+    -b --python /workspace/auto_rig_and_export.py -- \
+    --input /workspace/character.obj --output /workspace/rigged.glb
+
+# Retarget directly
+docker run --rm --gpus all -v $(pwd):/workspace blender-headless \
+    -b --python /workspace/retarget_and_export.py -- \
+    --target /workspace/avatar.glb \
+    --source /workspace/motion.bvh \
+    --output /workspace/animated.glb
+```
+
+## Programmatic Usage
+
+```javascript
+const { runAutoRig, runRetarget, runFullPipeline, runBatch } = require('./pipeline_runner');
+
+// Auto-rig
 const result = await runAutoRig({
   meshPath: 'character.obj',
   outputPath: 'rigged.glb',
   rigType: 'basic'
 });
+
+// Retarget
+const result = await runRetarget({
+  targetPath: 'avatar.glb',
+  animationPath: 'motion.bvh',
+  outputPath: 'animated.glb'
+});
+
+// Full pipeline
+const result = await runFullPipeline({
+  meshPath: 'mesh.obj',
+  animationPath: 'motion.bvh',
+  outputPath: 'final.glb'
+});
+
 console.log(result.success ? `Output: ${result.outputPath}` : `Error: ${result.error}`);
 ```
-```
 
-### Rendering .blend Files
+## Writing Custom Blender Scripts
 
-```bash
-# Render all frames from a .blend file
-docker run --rm \
-    --gpus all \
-    -v $(pwd):/workspace \
-    blender-headless --render scene.blend
-
-# Render specific frames
-docker run --rm \
-    --gpus all \
-    -v $(pwd):/workspace \
-    blender-headless -b /workspace/scene.blend -E CYCLES -s 1 -e 10 -a
-```
-
-### Interactive Shell (Debugging)
-
-```bash
-# Start an interactive shell in the container
-docker run --rm -it \
-    --gpus all \
-    -v $(pwd):/workspace \
-    blender-headless --shell
-
-# Inside the container, you can run Blender manually
-blender -b --python script.py
-```
-
-### Custom Blender Commands
-
-Any unrecognized arguments are passed directly to Blender:
-
-```bash
-# Run Blender with custom arguments
-docker run --rm \
-    --gpus all \
-    -v $(pwd):/workspace \
-    blender-headless -b /workspace/scene.blend --python /workspace/script.py
-```
-
-## Example Script (script.py)
-
-Create a `script.py` in your workspace directory:
+Create a `script.py` in your workspace:
 
 ```python
-"""
-Example Blender Python script for the headless microservice.
-This script demonstrates basic operations and exports.
-"""
-
 import bpy
 import os
-import sys
 
-# Get the workspace directory
 WORKSPACE = "/workspace"
 
 def setup_gpu():
     """Enable GPU rendering with CUDA."""
     prefs = bpy.context.preferences
     cycles_prefs = prefs.addons.get('cycles')
-    
     if cycles_prefs:
         cycles_prefs = cycles_prefs.preferences
         cycles_prefs.compute_device_type = 'CUDA'
         cycles_prefs.get_devices()
-        
-        # Enable all CUDA devices
         for device in cycles_prefs.devices:
             if device.type == 'CUDA':
                 device.use = True
-                print(f"Enabled GPU: {device.name}")
-        
-        # Set scene to use GPU
         bpy.context.scene.cycles.device = 'GPU'
 
-def clear_scene():
-    """Remove all objects from the scene."""
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete(use_global=False)
-
-def create_example_mesh():
-    """Create a simple example mesh."""
-    # Add a monkey (Suzanne)
-    bpy.ops.mesh.primitive_monkey_add(size=2, location=(0, 0, 0))
-    monkey = bpy.context.active_object
-    monkey.name = "ExampleMesh"
-    
-    # Add a subdivision modifier
-    bpy.ops.object.modifier_add(type='SUBSURF')
-    monkey.modifiers["Subdivision"].levels = 2
-    
-    return monkey
-
-def export_fbx(filepath):
-    """Export selected objects to FBX."""
-    # Note: apply_modifiers was removed in Blender 4.x
-    bpy.ops.export_scene.fbx(
-        filepath=filepath,
-        use_selection=True,
-        apply_scale_options='FBX_SCALE_ALL',
-        path_mode='COPY',
-        embed_textures=True
-    )
-    print(f"Exported FBX: {filepath}")
-
-def export_gltf(filepath):
-    """Export selected objects to glTF."""
-    bpy.ops.export_scene.gltf(
-        filepath=filepath,
-        use_selection=True,
-        export_apply=True
-    )
-    print(f"Exported glTF: {filepath}")
-
 def main():
-    print("=" * 50)
-    print("Blender Headless Microservice - Example Script")
-    print("=" * 50)
-    
-    # Setup GPU
     setup_gpu()
     
-    # Clear existing scene
-    clear_scene()
+    # Clear scene
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.object.delete()
     
-    # Create example content
-    mesh = create_example_mesh()
+    # Create mesh
+    bpy.ops.mesh.primitive_monkey_add(size=2)
     
-    # Select the mesh for export
-    bpy.ops.object.select_all(action='DESELECT')
-    mesh.select_set(True)
-    bpy.context.view_layer.objects.active = mesh
+    # Export (Blender 4.x compatible)
+    bpy.ops.export_scene.gltf(
+        filepath=os.path.join(WORKSPACE, "output.glb"),
+        export_apply=True
+    )
     
-    # Export to various formats
-    export_fbx(os.path.join(WORKSPACE, "output.fbx"))
-    export_gltf(os.path.join(WORKSPACE, "output.glb"))
-    
-    # Optional: Render an image
-    # bpy.context.scene.render.filepath = os.path.join(WORKSPACE, "render.png")
-    # bpy.ops.render.render(write_still=True)
-    
-    print("=" * 50)
-    print("Script completed successfully!")
-    print("=" * 50)
+    print("Export complete!")
 
 if __name__ == "__main__":
     main()
 ```
 
-## Complete Example Workflow
-
+Run with:
 ```bash
-# 1. Create a working directory
-mkdir blender-workspace && cd blender-workspace
-
-# 2. Create your script (see example above)
-cat > script.py << 'EOF'
-import bpy
-import os
-
-# Clear scene
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.object.delete()
-
-# Create a cube
-bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
-cube = bpy.context.active_object
-
-# Export as FBX
-bpy.ops.export_scene.fbx(filepath="/workspace/cube.fbx")
-print("Exported cube.fbx")
-EOF
-
-# 3. Build the container (if not already built)
-docker build -t blender-headless /path/to/dockerfile/directory
-
-# 4. Run the script
-docker run --rm \
-    --gpus all \
-    -v $(pwd):/workspace \
-    blender-headless --run
-
-# 5. Check the output
-ls -la  # You should see cube.fbx
+docker run --rm --gpus all -v $(pwd):/workspace blender-headless --run
 ```
 
-## Environment Variables
+## Supported Export Formats
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `BLENDER_SCRIPT` | `script.py` | Default Python script to execute |
-| `BLENDER_ARGS` | `` | Additional arguments passed to Blender |
+- **FBX** (`.fbx`) - `bpy.ops.export_scene.fbx()`
+- **glTF/GLB** (`.gltf`, `.glb`) - `bpy.ops.export_scene.gltf()`
+- **OBJ** (`.obj`) - `bpy.ops.wm.obj_export()`
+- **USD** (`.usd`, `.usda`, `.usdc`) - `bpy.ops.wm.usd_export()`
+- **Alembic** (`.abc`) - `bpy.ops.wm.alembic_export()`
+- **STL** (`.stl`) - `bpy.ops.wm.stl_export()`
+- **PLY** (`.ply`) - `bpy.ops.wm.ply_export()`
 
-## Volume Mounts
-
-| Container Path | Purpose |
-|----------------|---------|
-| `/workspace` | Main working directory for scripts, input files, and output files |
-
-## Caveats and Troubleshooting
+## Troubleshooting
 
 ### GPU Not Detected
 
@@ -476,89 +257,60 @@ sudo apt-get install --reinstall nvidia-container-toolkit
 sudo systemctl restart docker
 ```
 
-### Permission Issues with Output Files
-
-Output files are created as root inside the container. To fix:
+### Docker Permission Denied
 
 ```bash
-# Option 1: Run container as current user
-docker run --rm \
-    --gpus all \
-    --user $(id -u):$(id -g) \
-    -v $(pwd):/workspace \
-    blender-headless --run
+sudo usermod -aG docker $USER
+# Restart your terminal/WSL session
+```
 
-# Option 2: Fix permissions after run
+### Permission Issues with Output Files
+
+Output files are created as root. Fix with:
+```bash
+# Option 1: Run container as current user
+docker run --rm --gpus all --user $(id -u):$(id -g) -v $(pwd):/workspace blender-headless --run
+
+# Option 2: Fix permissions after
 sudo chown -R $(id -u):$(id -g) ./output*
 ```
 
 ### Memory Issues
 
-For large scenes or renders, increase Docker memory limits:
-
+For large scenes:
 ```bash
-docker run --rm \
-    --gpus all \
-    --memory=16g \
-    --memory-swap=32g \
-    -v $(pwd):/workspace \
-    blender-headless --run
+docker run --rm --gpus all --memory=16g --memory-swap=32g -v $(pwd):/workspace blender-headless --run
 ```
 
-### Blender Add-ons
+### Blender 4.x API Note
 
-To use additional Blender add-ons, mount your add-ons directory:
+The `apply_modifiers` parameter was removed in Blender 4.x FBX export. Use `apply_scale_options='FBX_SCALE_ALL'` instead.
 
-```bash
-docker run --rm \
-    --gpus all \
-    -v $(pwd):/workspace \
-    -v /path/to/addons:/opt/blender/4.2/scripts/addons_contrib \
-    blender-headless --run
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BLENDER_SCRIPT` | `script.py` | Default Python script to execute |
+| `BLENDER_ARGS` | `` | Additional arguments passed to Blender |
+| `LOG_LEVEL` | `info` | Logging level (debug, info, warn, error) |
+
+## Project Structure
+
 ```
-
-### Headless Display Issues
-
-Some Blender operations require a display. The container runs headless, but if you encounter issues:
-
-```bash
-# Run with virtual framebuffer (add to Dockerfile if needed)
-docker run --rm \
-    --gpus all \
-    -e DISPLAY=:0 \
-    -v /tmp/.X11-unix:/tmp/.X11-unix \
-    -v $(pwd):/workspace \
-    blender-headless --run
+.
+├── Dockerfile               # Container definition (6.4GB image)
+├── entrypoint.sh            # Container entrypoint
+├── pipeline_runner.js       # Node.js orchestration
+├── auto_rig_and_export.py   # Auto-rigging script
+├── retarget_and_export.py   # Animation retargeting script
+├── scripts/
+│   ├── bootstrap.sh         # Environment setup
+│   └── test-pipeline.sh     # Integration tests
+├── examples/
+│   ├── script.py            # Example Blender script
+│   └── sample_walk.bvh      # Sample animation
+└── output/                  # Generated files
 ```
-
-### Debugging Scripts
-
-```bash
-# Enable Python debugging output
-docker run --rm \
-    --gpus all \
-    -v $(pwd):/workspace \
-    -e BLENDER_ARGS="--debug-python --debug-all" \
-    blender-headless --run
-
-# Or start interactive shell and test manually
-docker run --rm -it \
-    --gpus all \
-    -v $(pwd):/workspace \
-    blender-headless --shell
-```
-
-## Supported Export Formats
-
-The container supports all Blender export formats, including:
-
-- **FBX** (`.fbx`) - `bpy.ops.export_scene.fbx()`
-- **glTF/GLB** (`.gltf`, `.glb`) - `bpy.ops.export_scene.gltf()`
-- **OBJ** (`.obj`) - `bpy.ops.wm.obj_export()`
-- **USD** (`.usd`, `.usda`, `.usdc`) - `bpy.ops.wm.usd_export()`
-- **Alembic** (`.abc`) - `bpy.ops.wm.alembic_export()`
-- **STL** (`.stl`) - `bpy.ops.wm.stl_export()`
-- **PLY** (`.ply`) - `bpy.ops.wm.ply_export()`
 
 ## License
 

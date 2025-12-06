@@ -95,6 +95,23 @@ def array(*args, **kwargs):
 STUBEOF
 }
 
+# Patch chumpy for numpy 1.24+ compatibility (deprecated type aliases removed)
+info "Patching chumpy for numpy compatibility..."
+CHUMPY_INIT=$(python -c "import chumpy; print(chumpy.__file__)" 2>/dev/null) || true
+if [[ -n "$CHUMPY_INIT" ]] && [[ -f "$CHUMPY_INIT" ]]; then
+    sed -i 's/from numpy import bool, int, float, complex, object, unicode, str, nan, inf/from numpy import nan, inf/' "$CHUMPY_INIT" || true
+    info "Patched chumpy __init__.py"
+else
+    # Try direct path as fallback
+    SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])" 2>/dev/null) || true
+    if [[ -f "${SITE_PACKAGES}/chumpy/__init__.py" ]]; then
+        sed -i 's/from numpy import bool, int, float, complex, object, unicode, str, nan, inf/from numpy import nan, inf/' "${SITE_PACKAGES}/chumpy/__init__.py" || true
+        info "Patched chumpy __init__.py via fallback path"
+    else
+        warn "Could not find chumpy to patch"
+    fi
+fi
+
 # =============================================================================
 # Install Detectron2 (from build_frankmocap.sh install_detectron2)
 # =============================================================================
@@ -105,6 +122,15 @@ if [[ ! -d "/opt/detectron2" ]]; then
     pip install --no-build-isolation -e .
 fi
 cd "$INSTALL_DIR"
+
+# =============================================================================
+# Install PyTorch3D (for headless rendering without OpenGL)
+# =============================================================================
+info "Installing PyTorch3D from source for headless rendering..."
+# Must use --no-build-isolation so setup.py can import torch
+pip install --no-build-isolation 'git+https://github.com/facebookresearch/pytorch3d.git@stable' || {
+    warn "PyTorch3D installation failed - OpenGL renderer will be used as fallback"
+}
 
 # =============================================================================
 # Download Models (from build_frankmocap.sh download_body_module_data)
@@ -167,6 +193,11 @@ cd detectors
 # Body pose estimator (lightweight-human-pose-estimation)
 git clone https://github.com/Daniil-Osokin/lightweight-human-pose-estimation.pytorch.git \
     body_pose_estimator 2>/dev/null || warn "Failed to clone body pose estimator"
+
+# FrankMocap expects pose2d_models but the repo uses models - create symlink
+if [[ -d "body_pose_estimator/models" ]] && [[ ! -d "body_pose_estimator/pose2d_models" ]]; then
+    ln -s models body_pose_estimator/pose2d_models
+fi
 
 # Hand detection (only if not body-only)
 if [[ "$BODY_ONLY" != "true" ]]; then

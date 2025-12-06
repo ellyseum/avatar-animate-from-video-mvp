@@ -1,7 +1,7 @@
 {
   "name": "avatar-animate-from-video-mvp",
-  "version": "1.2.0",
-  "description": "Docker-based headless Blender microservice with CUDA GPU support for automated rigging and animation retargeting pipelines.",
+  "version": "1.2.1",
+  "description": "Docker-based pipeline for video-to-mocap extraction and avatar animation using FrankMocap and headless Blender with CUDA GPU support.",
   "main": "pipeline_runner.js",
   "bin": {
     "pipeline-runner": "./pipeline_runner.js"
@@ -14,6 +14,11 @@
     "docker:gpu-info": "docker run --rm --gpus all blender-headless --gpu-info",
     "docker:shell": "docker run --rm -it --gpus all -v $(pwd):/workspace blender-headless --shell",
     "docker:version": "docker run --rm blender-headless --version",
+    "frank:build": "docker build -t frankmocap-gpu -f frankmocap/Dockerfile .",
+    "frank:gpu-info": "docker run --rm --gpus all frankmocap-gpu --gpu-info",
+    "frank:shell": "docker run --rm -it --gpus all -v $(pwd)/smpl:/opt/frankmocap/extra_data/smpl frankmocap-gpu --shell",
+    "frank:version": "docker run --rm frankmocap-gpu --version",
+    "frank:run": "docker run --rm --gpus all -v $(pwd)/smpl:/opt/frankmocap/extra_data/smpl -v $(pwd)/output:/workspace/output frankmocap-gpu",
     "test": "./scripts/test-pipeline.sh",
     "lint": "eslint *.js"
   },

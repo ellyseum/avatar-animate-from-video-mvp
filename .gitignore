@@ -34,7 +34,10 @@ dist/
 build/
 output/
 
-# FrankMocap downloaded data
+# SMPL models (large files, user must download)
+smpl/
+
+# FrankMocap downloaded data (if local build)
 frankmocap/extra_data/
 frankmocap/sample_data/
 frankmocap/detectors/

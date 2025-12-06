@@ -168,9 +168,13 @@ run_body_mocap() {
     cd "$FRANKMOCAP_DIR"
     start_xvfb
     
+    # Use pytorch3d renderer by default for headless operation
+    # Add --no_display to prevent GUI windows
     python -m demo.demo_bodymocap \
         --input_path "$input_path" \
         --out_dir "$out_dir" \
+        --renderer_type pytorch3d \
+        --no_display \
         "${extra_args[@]}"
 }
 
@@ -186,9 +190,12 @@ run_hand_mocap() {
     cd "$FRANKMOCAP_DIR"
     start_xvfb
     
+    # Use pytorch3d renderer by default for headless operation
     python -m demo.demo_handmocap \
         --input_path "$input_path" \
         --out_dir "$out_dir" \
+        --renderer_type pytorch3d \
+        --no_display \
         "${extra_args[@]}"
 }
 
@@ -204,9 +211,12 @@ run_full_mocap() {
     cd "$FRANKMOCAP_DIR"
     start_xvfb
     
+    # Use pytorch3d renderer by default for headless operation
     python -m demo.demo_frankmocap \
         --input_path "$input_path" \
         --out_dir "$out_dir" \
+        --renderer_type pytorch3d \
+        --no_display \
         "${extra_args[@]}"
 }
 

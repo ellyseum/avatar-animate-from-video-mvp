@@ -34,6 +34,9 @@ dist/
 build/
 output/
 
+# Job data (videos, mocap, results)
+data/
+
 # SMPL models (large files, user must download)
 smpl/
 

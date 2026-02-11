@@ -583,13 +583,15 @@ def retarget_animation(source_armature, target_armature, bone_mapping,
             if not source_pose_bone or not target_pose_bone:
                 continue
             
-            # Get source rotation
-            source_rot = source_pose_bone.rotation_quaternion.copy()
-            if source_pose_bone.rotation_mode == 'XYZ':
-                source_rot = source_pose_bone.rotation_euler.to_quaternion()
+            # Get source rotation (handle all Blender rotation modes)
+            if source_pose_bone.rotation_mode == 'QUATERNION':
+                source_rot = source_pose_bone.rotation_quaternion.copy()
             elif source_pose_bone.rotation_mode == 'AXIS_ANGLE':
                 aa = source_pose_bone.rotation_axis_angle
                 source_rot = Quaternion(aa[1:], aa[0])
+            else:
+                # Any Euler mode (XYZ, XZY, YXZ, YZX, ZXY, ZYX)
+                source_rot = source_pose_bone.rotation_euler.to_quaternion()
             
             # Apply rotation to target
             target_pose_bone.rotation_mode = 'QUATERNION'

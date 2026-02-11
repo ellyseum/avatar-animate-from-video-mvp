@@ -20,7 +20,11 @@
     "frank:version": "docker run --rm frankmocap-gpu --version",
     "frank:run": "docker run --rm --gpus all -v $(pwd)/smpl:/opt/frankmocap/extra_data/smpl -v $(pwd)/output:/workspace/output frankmocap-gpu",
     "test": "./scripts/test-pipeline.sh",
-    "lint": "eslint *.js"
+    "lint": "eslint *.js",
+    "dev:server": "node server/index.js",
+    "dev:web": "cd web && npm run dev",
+    "dev": "node -e \"const{spawn}=require('child_process');const s=spawn('node',['server/index.js'],{stdio:'inherit'});const w=spawn('npm',['run','dev'],{cwd:'web',stdio:'inherit'});process.on('SIGINT',()=>{s.kill();w.kill();process.exit()})\"",
+    "build:web": "cd web && npm run build"
   },
   "keywords": [
     "blender",
@@ -41,5 +45,10 @@
   },
   "devDependencies": {
     "eslint": "^8.56.0"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "uuid": "^13.0.0"
   }
 }

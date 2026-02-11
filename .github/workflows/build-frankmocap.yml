@@ -12,7 +12,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ellyseum/frankmocap-gpu
+  IMAGE_NAME: vc-sports/frankmocap-gpu
 
 jobs:
   build:

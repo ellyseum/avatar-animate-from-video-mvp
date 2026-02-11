@@ -43,6 +43,25 @@ info() { log "${GREEN}INFO${NC}: $1"; }
 warn() { log "${YELLOW}WARN${NC}: $1"; }
 error() { log "${RED}ERROR${NC}: $1"; exit 1; }
 
+# Ensure hand_object_detector dependencies are available for full mode
+setup_hand_detector() {
+    local hod="/opt/frankmocap/detectors/hand_object_detector"
+    # Install easydict if missing
+    python -c "import easydict" 2>/dev/null || pip install easydict -q 2>/dev/null
+    # Symlink model/ to top level if not already done (hand_bbox_detector.py needs it)
+    if [ -d "$hod/lib/model" ] && [ ! -e "$hod/model" ]; then
+        ln -sf "$hod/lib/model" "$hod/model"
+    fi
+    # Fix datasets import conflict: hand_object_detector's setup.py installs a global
+    # 'datasets' package that shadows body_pose_estimator's local one. Remove it at
+    # runtime (for containers built before the Dockerfile fix). body_bbox_detector.py's
+    # sys.path.append('./detectors/body_pose_estimator') handles the rest.
+    if [ -d "/usr/local/lib/python3.10/dist-packages/datasets" ]; then
+        rm -rf /usr/local/lib/python3.10/dist-packages/datasets/
+        info "Removed conflicting global datasets package"
+    fi
+}
+
 # Start virtual framebuffer for headless rendering
 start_xvfb() {
     if ! pgrep -x Xvfb > /dev/null; then
@@ -115,7 +134,7 @@ EOF
 
 show_version() {
     echo "FrankMocap Container v1.0"
-    echo "Based on: https://github.com/ellyseum/frankmocap"
+    echo "Based on: https://github.com/vc-sports/frankmocap"
     echo ""
     python -c "
 import torch
@@ -204,11 +223,12 @@ run_full_mocap() {
     local out_dir="$2"
     shift 2
     local extra_args=("$@")
-    
+
     info "Running full body+hand motion capture on: $input_path"
     info "Output directory: $out_dir"
-    
+
     cd "$FRANKMOCAP_DIR"
+    setup_hand_detector
     start_xvfb
     
     # Use pytorch3d renderer by default for headless operation

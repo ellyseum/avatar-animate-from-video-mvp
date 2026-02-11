@@ -30,7 +30,7 @@
 # -----------------------------------------------------------------------------
 FROM nvidia/cuda:12.8.0-cudnn-devel-ubuntu22.04 AS base
 
-LABEL maintainer="ellyseum"
+LABEL maintainer="vc-sports"
 LABEL description="FrankMocap headless GPU container for motion capture inference"
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -155,7 +155,7 @@ FROM pytorch3d AS frankmocap
 
 WORKDIR /opt
 
-RUN git clone https://github.com/ellyseum/frankmocap.git /opt/frankmocap
+RUN git clone https://github.com/vc-sports/frankmocap.git /opt/frankmocap
 
 # Apply compatibility patches
 WORKDIR /opt/frankmocap
@@ -178,17 +178,30 @@ FROM frankmocap AS detectors
 
 WORKDIR /opt/frankmocap
 
+RUN pip install --no-cache-dir easydict
+
 RUN mkdir -p detectors && cd detectors && \
     git clone https://github.com/Daniil-Osokin/lightweight-human-pose-estimation.pytorch.git body_pose_estimator && \
     if [ -d "body_pose_estimator/models" ] && [ ! -d "body_pose_estimator/pose2d_models" ]; then \
         ln -s models body_pose_estimator/pose2d_models; \
     fi && \
-    git clone https://github.com/ellyseum/hand_object_detector.git && \
+    git clone https://github.com/vc-sports/hand_object_detector.git && \
     if [ -d "hand_object_detector/lib" ]; then \
-        cd hand_object_detector/lib && python setup.py build || true; \
+        cd hand_object_detector/lib && python setup.py install && \
+        # Symlink model/ to top level so hand_bbox_detector.py's sys.path.append finds it
+        # (it appends ./detectors/hand_object_detector but model/ lives in lib/)
+        ln -sf /opt/frankmocap/detectors/hand_object_detector/lib/model \
+               /opt/frankmocap/detectors/hand_object_detector/model; \
     fi && \
     cd /opt/frankmocap/detectors && \
     git clone https://github.com/ddshan/hand_detector.d2.git hand_only_detector || true
+
+# Fix datasets import conflict: hand_object_detector's setup.py installs a global
+# 'datasets' package that shadows body_pose_estimator's local one (both have coco.py
+# but with different contents). Remove the global one — it's only needed for HOD training.
+# body_bbox_detector.py does sys.path.append('./detectors/body_pose_estimator') which
+# makes the local datasets/ findable once the global shadow is removed.
+RUN rm -rf /usr/local/lib/python3.10/dist-packages/datasets/
 
 # -----------------------------------------------------------------------------
 # Stage 8: Models - Download pretrained models

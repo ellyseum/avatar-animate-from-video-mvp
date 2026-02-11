@@ -15,7 +15,7 @@
     "docker:shell": "docker run --rm -it --gpus all -v $(pwd):/workspace blender-headless --shell",
     "docker:version": "docker run --rm blender-headless --version",
     "frank:build": "docker build -t frankmocap-gpu -f frankmocap/Dockerfile .",
-    "frank:pull": "docker pull ghcr.io/ellyseum/frankmocap-gpu:latest && docker tag ghcr.io/ellyseum/frankmocap-gpu:latest frankmocap-gpu",
+    "frank:pull": "docker pull ghcr.io/vc-sports/frankmocap-gpu:latest && docker tag ghcr.io/vc-sports/frankmocap-gpu:latest frankmocap-gpu",
     "frank:gpu-info": "docker run --rm --gpus all frankmocap-gpu --gpu-info",
     "frank:shell": "docker run --rm -it --gpus all -v $(pwd)/smpl:/opt/frankmocap/extra_data/smpl frankmocap-gpu --shell",
     "frank:version": "docker run --rm frankmocap-gpu --version",

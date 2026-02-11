@@ -43,9 +43,9 @@ if torch.cuda.is_available():
 # =============================================================================
 # Clone FrankMocap (from build_frankmocap.sh clone_frankmocap)
 # =============================================================================
-info "Cloning FrankMocap from ellyseum fork..."
+info "Cloning FrankMocap from vc-sports fork..."
 if [[ ! -d "$INSTALL_DIR" ]]; then
-    git clone https://github.com/ellyseum/frankmocap.git "$INSTALL_DIR"
+    git clone https://github.com/vc-sports/frankmocap.git "$INSTALL_DIR"
 fi
 cd "$INSTALL_DIR"
 
@@ -201,8 +201,8 @@ fi
 
 # Hand detection (only if not body-only)
 if [[ "$BODY_ONLY" != "true" ]]; then
-    # Hand object detector (ellyseum fork with PyTorch 2.x fixes)
-    git clone https://github.com/ellyseum/hand_object_detector.git 2>/dev/null || warn "Failed to clone hand detector"
+    # Hand object detector (vc-sports fork with PyTorch 2.x fixes)
+    git clone https://github.com/vc-sports/hand_object_detector.git 2>/dev/null || warn "Failed to clone hand detector"
     if [[ -d "hand_object_detector/lib" ]]; then
         cd hand_object_detector/lib
         python setup.py build 2>/dev/null || warn "Failed to build hand detector"

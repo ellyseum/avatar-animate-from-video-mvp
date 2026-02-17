@@ -1,25 +1,37 @@
-import { useState } from 'react';
-import { Link, Loader2 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Link, Loader2, Upload } from 'lucide-react';
 
 interface Props {
-  onSubmit: (url: string) => void;
+  onSubmitUrl: (url: string) => void;
+  onSubmitFile: (file: File) => void;
   loading: boolean;
 }
 
-export function UrlInput({ onSubmit, loading }: Props) {
+export function UrlInput({ onSubmitUrl, onSubmitFile, loading }: Props) {
   const [url, setUrl] = useState('');
   const [error, setError] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
 
-    const ytRegex = /^https?:\/\/(www\.)?(youtube\.com\/(watch\?v=|shorts\/)|youtu\.be\/)/;
-    if (!ytRegex.test(url.trim())) {
-      setError('Please enter a valid YouTube URL');
+    try {
+      new URL(url.trim());
+    } catch {
+      setError('Please enter a valid URL');
       return;
     }
-    onSubmit(url.trim());
+    onSubmitUrl(url.trim());
+  }
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError('');
+    onSubmitFile(file);
+    // Reset so the same file can be re-selected
+    e.target.value = '';
   }
 
   return (
@@ -31,7 +43,7 @@ export function UrlInput({ onSubmit, loading }: Props) {
             type="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="Paste YouTube URL..."
+            placeholder="Paste video URL..."
             disabled={loading}
             className="w-full pl-10 pr-4 py-3 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-primary)] transition-colors disabled:opacity-50"
           />
@@ -44,6 +56,23 @@ export function UrlInput({ onSubmit, loading }: Props) {
           {loading ? <Loader2 size={18} className="animate-spin" /> : null}
           {loading ? 'Processing...' : 'Animate'}
         </button>
+        <button
+          type="button"
+          disabled={loading}
+          onClick={() => fileRef.current?.click()}
+          className="px-4 py-3 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-[var(--color-surface-2)] text-[var(--color-text)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          title="Upload video file"
+        >
+          <Upload size={18} />
+          <span className="hidden sm:inline text-sm">Upload</span>
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="video/*"
+          onChange={handleFile}
+          className="hidden"
+        />
       </div>
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
     </form>

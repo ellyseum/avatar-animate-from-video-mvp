@@ -45,3 +45,12 @@ frankmocap/extra_data/
 frankmocap/sample_data/
 frankmocap/detectors/
 frankmocap/detectron2_build/
+
+# Wrangler local state
+deploy/cloudflare/.wrangler/
+
+# Claudio state
+.honeyb/
+
+# Web build output (built at deploy time)
+web/dist/

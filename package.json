@@ -25,7 +25,15 @@
     "dev:server": "node server/index.js",
     "dev:web": "cd web && npm run dev",
     "dev": "node -e \"const{spawn}=require('child_process');const s=spawn('node',['server/index.js'],{stdio:'inherit'});const w=spawn('npm',['run','dev'],{cwd:'web',stdio:'inherit'});process.on('SIGINT',()=>{s.kill();w.kill();process.exit()})\"",
-    "build:web": "cd web && npm run build"
+    "build:web": "cd web && npm run build",
+    "preprocess:build": "docker build -t silhouette-preprocessor -f preprocessor/Dockerfile preprocessor/",
+    "preprocess:build-baked": "docker build --build-arg BAKE_MODELS=1 -t silhouette-preprocessor -f preprocessor/Dockerfile preprocessor/",
+    "preprocess:server": "docker run --rm --gpus all -p 7860:7860 -v $HOME/.cache/huggingface:/root/.cache/huggingface silhouette-preprocessor",
+    "preprocess:shell": "docker run --rm -it --gpus all -v $HOME/.cache/huggingface:/root/.cache/huggingface silhouette-preprocessor shell",
+    "preprocess:test": "docker run --rm --gpus all -v $HOME/.cache/huggingface:/root/.cache/huggingface -v $(pwd):/workspace silhouette-preprocessor batch --input /workspace/test.mp4 --output /workspace/out.mp4",
+    "deploy:build-image": "npm run build:web && docker build -f deploy/Dockerfile.runpod -t ghcr.io/vc-sports/mocap-runpod:latest .",
+    "deploy:push-image": "docker push ghcr.io/vc-sports/mocap-runpod:latest",
+    "deploy:pages": "cd deploy/cloudflare && npx wrangler pages deploy ../../web/dist --project-name=mocap-demo"
   },
   "keywords": [
     "blender",

@@ -14,7 +14,7 @@
 #   6. frankmocap   - FrankMocap code and patches
 #   7. detectors    - Third-party detectors
 #   8. models       - Download pretrained models
-#   9. final        - Entrypoint and runtime config
+#   9. final        - Slim runtime image (no devel toolkit, ~6GB smaller)
 #
 # Build specific stage:
 #   docker build --target pytorch -t frankmocap-pytorch -f frankmocap/Dockerfile .
@@ -248,9 +248,72 @@ RUN mkdir -p extra_data/smpl && \
     echo "SMPL/SMPLX models required. Mount at /opt/frankmocap/extra_data/smpl" > extra_data/smpl/README.txt
 
 # -----------------------------------------------------------------------------
-# Stage 9: Final - Runtime configuration
+# Stage 9: Runtime - Slim final image (runtime base, no devel toolkit)
 # -----------------------------------------------------------------------------
-FROM models AS final
+FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu22.04 AS final
+
+LABEL maintainer="vc-sports"
+LABEL description="FrankMocap headless GPU container (runtime-optimized)"
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH="${CUDA_HOME}/bin:${PATH}"
+ENV LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}"
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Only runtime system dependencies — no -dev packages, no build tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.10 \
+    python3-pip \
+    libgl1 \
+    libgl1-mesa-glx \
+    libglu1-mesa \
+    libglfw3 \
+    libosmesa6 \
+    freeglut3 \
+    libxi6 \
+    libxmu6 \
+    xvfb \
+    x11-utils \
+    ffmpeg \
+    libjpeg8 \
+    libpng16-16 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    wget \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1 && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
+
+# Copy all installed Python packages from the build stage
+COPY --from=models /usr/local/lib/python3.10/dist-packages/ /usr/local/lib/python3.10/dist-packages/
+COPY --from=models /usr/local/bin/ /usr/local/bin/
+COPY --from=models /usr/lib/python3/dist-packages/ /usr/lib/python3/dist-packages/
+
+# Copy FrankMocap code + models + detectors
+COPY --from=models /opt/frankmocap/ /opt/frankmocap/
+COPY --from=models /opt/detectron2/ /opt/detectron2/
+
+# Make detectron2 importable without editable install (no g++ in runtime image).
+# The compiled _C.so is already in the copied source tree.
+ENV PYTHONPATH="/opt/detectron2:${PYTHONPATH}"
+
+# easydict is required by hand_object_detector but wasn't in the base image
+RUN pip install --no-cache-dir easydict
+
+# Clean up stale local packages in hand_object_detector/lib/ that shadow global ones.
+# hand_object_detector's setup.py installed pycocotools/datasets locally — they conflict
+# with the global versions that detectron2 needs.
+RUN find /opt/frankmocap/detectors/hand_object_detector/lib/ \
+    -maxdepth 1 -type d \
+    ! -name lib ! -name model ! -name build \
+    -exec rm -rf {} + 2>/dev/null; true
 
 # Create workspace
 RUN mkdir -p /workspace/input /workspace/output

@@ -1,0 +1,92 @@
+# Slim rebuild: extracts runtime stage from existing frankmocap-gpu:latest
+# Use this for local builds when the full Dockerfile can't clone private repos.
+# The main Dockerfile is the source of truth for CI.
+
+FROM frankmocap-gpu:latest AS models
+
+FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu22.04 AS final
+
+LABEL maintainer="vc-sports"
+LABEL description="FrankMocap headless GPU container (runtime-optimized)"
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH="${CUDA_HOME}/bin:${PATH}"
+ENV LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}"
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Only runtime system dependencies — no -dev packages, no build tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.10 \
+    python3-pip \
+    libgl1 \
+    libgl1-mesa-glx \
+    libglu1-mesa \
+    libglfw3 \
+    libosmesa6 \
+    freeglut3 \
+    libxi6 \
+    libxmu6 \
+    xvfb \
+    x11-utils \
+    ffmpeg \
+    libjpeg8 \
+    libpng16-16 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    wget \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1 && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
+
+# Copy all installed Python packages from the build stage
+COPY --from=models /usr/local/lib/python3.10/dist-packages/ /usr/local/lib/python3.10/dist-packages/
+COPY --from=models /usr/local/bin/ /usr/local/bin/
+COPY --from=models /usr/lib/python3/dist-packages/ /usr/lib/python3/dist-packages/
+
+# Copy FrankMocap code + models + detectors
+COPY --from=models /opt/frankmocap/ /opt/frankmocap/
+COPY --from=models /opt/detectron2/ /opt/detectron2/
+
+# Make detectron2 importable without editable install (no g++ in runtime image).
+# The compiled _C.so is already in the copied source tree.
+ENV PYTHONPATH="/opt/detectron2:${PYTHONPATH}"
+
+# easydict is required by hand_object_detector but wasn't in the base image
+RUN pip install --no-cache-dir easydict
+
+# Patch hand_bbox_detector to skip malformed bboxes instead of crashing
+COPY frankmocap/patches/hand_bbox_detector.py /opt/frankmocap/handmocap/hand_bbox_detector.py
+
+# Clean up stale local packages in hand_object_detector/lib/ that shadow global ones.
+# hand_object_detector's setup.py installed pycocotools/datasets locally — they conflict
+# with the global versions that detectron2 needs.
+RUN find /opt/frankmocap/detectors/hand_object_detector/lib/ \
+    -maxdepth 1 -type d \
+    ! -name lib ! -name model ! -name build \
+    -exec rm -rf {} + 2>/dev/null; true
+
+# Create workspace
+RUN mkdir -p /workspace/input /workspace/output
+
+# Copy entrypoint
+COPY frankmocap/entrypoint_frankmocap.sh /opt/frankmocap/entrypoint.sh
+RUN chmod +x /opt/frankmocap/entrypoint.sh
+
+# Runtime environment
+ENV PYOPENGL_PLATFORM=osmesa
+ENV DISPLAY=:99
+ENV MPLBACKEND=Agg
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import torch; assert torch.cuda.is_available()" || exit 1
+
+WORKDIR /opt/frankmocap
+ENTRYPOINT ["/opt/frankmocap/entrypoint.sh"]
+CMD ["--help"]

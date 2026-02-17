@@ -1,7 +1,11 @@
 export type JobStatus =
   | 'downloading'
+  | 'preprocessing'
   | 'extracting'
-  | 'encoding'
+  | 'converting'
+  | 'animating'
+  | 'rendering'
+  | 'compositing'
   | 'complete'
   | 'failed';
 
@@ -13,4 +17,14 @@ export interface Job {
   error: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export type PodStatus = 'stopped' | 'starting' | 'running' | 'error' | 'unknown';
+
+export interface PodState {
+  status: PodStatus;
+  url: string | null;
+  idleMinutes: number | null;
+  gpu?: string | null;
+  error?: string;
 }

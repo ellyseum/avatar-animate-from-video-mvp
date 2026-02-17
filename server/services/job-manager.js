@@ -1,13 +1,20 @@
 const fs = require('fs').promises;
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const EventEmitter = require('events');
 
-const DATA_DIR = path.join(__dirname, '..', '..', 'data', 'jobs');
+// Use /workspace/data/jobs on RunPod (persistent volume) or local data/jobs for dev
+const DATA_DIR = process.env.PIPELINE_MODE === 'direct'
+    ? '/workspace/data/jobs'
+    : path.join(__dirname, '..', '..', 'data', 'jobs');
 
 // In-memory job store (persisted to disk as JSON)
 const jobs = new Map();
 
-const JOB_STATES = ['downloading', 'extracting', 'converting', 'animating', 'complete', 'failed'];
+// Event emitter for real-time notifications
+const events = new EventEmitter();
+
+const JOB_STATES = ['downloading', 'preprocessing', 'extracting', 'converting', 'animating', 'rendering', 'compositing', 'complete', 'failed'];
 
 async function ensureDataDir() {
     await fs.mkdir(DATA_DIR, { recursive: true });
@@ -26,6 +33,7 @@ function createJob(url) {
     };
     jobs.set(id, job);
     persistJob(job);
+    events.emit('job:update', job);
     return job;
 }
 
@@ -44,6 +52,7 @@ function updateJob(id, updates) {
     if (!job) return null;
     Object.assign(job, updates, { updatedAt: new Date().toISOString() });
     persistJob(job);
+    events.emit('job:update', job);
     return job;
 }
 
@@ -96,14 +105,30 @@ async function loadPersistedJobs() {
     }
 }
 
+async function deleteJob(id) {
+    const job = jobs.get(id);
+    if (!job) return false;
+    jobs.delete(id);
+    events.emit('job:delete', id);
+    const dir = jobDir(id);
+    try {
+        await fs.rm(dir, { recursive: true, force: true });
+    } catch (e) {
+        console.error(`Failed to delete job dir ${id}:`, e.message);
+    }
+    return true;
+}
+
 module.exports = {
     createJob,
     getJob,
     listJobs,
     updateJob,
     failJob,
+    deleteJob,
     jobDir,
     ensureJobDir,
     loadPersistedJobs,
+    events,
     DATA_DIR,
 };

@@ -3,16 +3,24 @@ import type { Job, JobStatus } from '../lib/types';
 
 const STEPS: { key: JobStatus; label: string }[] = [
   { key: 'downloading', label: 'Downloading video' },
+  { key: 'preprocessing', label: 'Generating silhouettes (AI)' },
   { key: 'extracting', label: 'Extracting mocap (this takes a bit)' },
-  { key: 'encoding', label: 'Encoding video' },
+  { key: 'converting', label: 'Converting to animation data' },
+  { key: 'animating', label: 'Building animated avatar' },
+  { key: 'rendering', label: 'Rendering overlay frames' },
+  { key: 'compositing', label: 'Building comparison video' },
   { key: 'complete', label: 'Done' },
 ];
 
 const ORDER: Record<JobStatus, number> = {
   downloading: 0,
-  extracting: 1,
-  encoding: 2,
-  complete: 3,
+  preprocessing: 1,
+  extracting: 2,
+  converting: 3,
+  animating: 4,
+  rendering: 5,
+  compositing: 6,
+  complete: 7,
   failed: -1,
 };
 

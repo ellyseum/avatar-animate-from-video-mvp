@@ -1,0 +1,102 @@
+# Unified RunPod image: FrankMocap + Node.js + Blender + yt-dlp
+# No Docker-in-Docker — everything runs as subprocesses.
+#
+# Base already includes: CUDA 12.8, PyTorch, FrankMocap, ffmpeg, Python 3.10, Xvfb
+
+FROM frankmocap-gpu:slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# --- Node.js 20 LTS ---
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Blender 4.2.3 headless ---
+ENV BLENDER_VERSION=4.2
+ENV BLENDER_VERSION_FULL=4.2.3
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget xz-utils \
+    libxi6 libxxf86vm1 libxfixes3 libxrender1 libgl1 libglu1-mesa \
+    libegl1 libxkbcommon0 libsm6 libice6 \
+    libgomp1 libfontconfig1 libfreetype6 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt
+RUN wget -q https://download.blender.org/release/Blender${BLENDER_VERSION}/blender-${BLENDER_VERSION_FULL}-linux-x64.tar.xz \
+    && tar -xf blender-${BLENDER_VERSION_FULL}-linux-x64.tar.xz \
+    && rm blender-${BLENDER_VERSION_FULL}-linux-x64.tar.xz \
+    && mv blender-${BLENDER_VERSION_FULL}-linux-x64 blender
+
+ENV PATH="/opt/blender:${PATH}"
+
+# Install numpy/scipy into Blender's bundled Python
+RUN /opt/blender/${BLENDER_VERSION}/python/bin/python3.11 -m ensurepip \
+    && /opt/blender/${BLENDER_VERSION}/python/bin/python3.11 -m pip install --upgrade pip \
+    && /opt/blender/${BLENDER_VERSION}/python/bin/python3.11 -m pip install \
+    numpy scipy pillow requests
+
+# --- FrankMocap bbox crash fix ---
+# Skip malformed bboxes (scalar instead of 4-tuple) in hand detection
+COPY frankmocap/patches/hand_bbox_detector.py /opt/frankmocap/handmocap/hand_bbox_detector.py
+
+# --- FrankMocap runtime hotfixes ---
+# The base image has module resolution issues that surface at runtime:
+# 1. hand_object_detector/model symlink missing (points to lib/model)
+# 2. _C.so not in the right place for the model package
+# 3. Global model/ and datasets/ packages shadow FrankMocap's local ones
+# 4. Stale pycocotools/datasets in hand_object_detector/lib/ conflict via PYTHONPATH
+# 5. easydict missing, pycocotools needs reinstall for detectron2 compat
+RUN ln -sf /opt/frankmocap/detectors/hand_object_detector/lib/model \
+        /opt/frankmocap/detectors/hand_object_detector/model 2>/dev/null; \
+    cp /opt/frankmocap/detectors/hand_object_detector/lib/build/lib.linux-x86_64-cpython-310/model/_C.cpython-310-x86_64-linux-gnu.so \
+        /opt/frankmocap/detectors/hand_object_detector/lib/model/ 2>/dev/null; \
+    cp /usr/local/lib/python3.10/dist-packages/model/_C.cpython-310-x86_64-linux-gnu.so \
+        /opt/frankmocap/detectors/hand_object_detector/lib/model/ 2>/dev/null; \
+    rm -rf /usr/local/lib/python3.10/dist-packages/model/ \
+        /usr/local/lib/python3.10/dist-packages/datasets/; \
+    find /opt/frankmocap/detectors/hand_object_detector/lib/ \
+        -maxdepth 1 -type d \
+        ! -name lib ! -name model ! -name build \
+        -exec rm -rf {} + 2>/dev/null; \
+    pip install --no-build-isolation -q easydict 2>/dev/null; \
+    echo "FrankMocap hotfixes applied"
+
+# --- yt-dlp ---
+RUN pip install yt-dlp
+
+# --- SMPL models (baked in, symlinked at startup) ---
+COPY smpl/ /app/smpl/
+
+# --- Application code ---
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY server/ ./server/
+COPY npz_to_glb.py render_overlay.py render_animation.py ./scripts/
+COPY frankmocap/pkl_to_npz.py ./scripts/
+
+# Build frontend into the image (expects web/dist/ to exist from host build)
+COPY web/dist/ ./web/dist/
+
+# --- Startup script ---
+COPY deploy/start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+# --- Runtime config ---
+ENV PIPELINE_MODE=direct \
+    PREPROCESSOR_MODE=ffmpeg \
+    PYTHONPATH="/opt/frankmocap:/opt/frankmocap/detectors/hand_object_detector/lib" \
+    PORT=3001 \
+    NODE_ENV=production \
+    DISPLAY=:99
+
+EXPOSE 3001
+
+# Override FrankMocap's ENTRYPOINT (it prints help and exits)
+ENTRYPOINT []
+
+CMD ["/app/start.sh"]

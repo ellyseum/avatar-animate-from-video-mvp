@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getJob } from '../lib/api';
+import { subscribe } from '../lib/ws';
 import type { Job } from '../lib/types';
 
 export function useJob(jobId: string | null) {
   const [job, setJob] = useState<Job | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!jobId) {
@@ -12,29 +12,19 @@ export function useJob(jobId: string | null) {
       return;
     }
 
-    let cancelled = false;
+    // Seed initial state via REST (WS jobs:list may have already fired)
+    getJob(jobId).then(setJob).catch(() => {});
 
-    async function poll() {
-      try {
-        const data = await getJob(jobId!);
-        if (!cancelled) setJob(data);
-
-        // Stop polling when terminal
-        if (data.status === 'complete' || data.status === 'failed') {
-          if (intervalRef.current) clearInterval(intervalRef.current);
-        }
-      } catch {
-        // Keep polling on transient errors
+    // Live updates via WS
+    return subscribe((msg) => {
+      if (msg.type === 'job:update' && msg.job.id === jobId) {
+        setJob(msg.job);
       }
-    }
-
-    poll();
-    intervalRef.current = setInterval(poll, 2000);
-
-    return () => {
-      cancelled = true;
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
+      if (msg.type === 'jobs:list') {
+        const found = msg.jobs.find((j) => j.id === jobId);
+        if (found) setJob(found);
+      }
+    });
   }, [jobId]);
 
   return job;

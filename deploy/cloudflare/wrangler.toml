@@ -1,0 +1,15 @@
+name = "mocap-demo"
+compatibility_date = "2024-12-01"
+pages_build_output_dir = "../../web/dist"
+
+# KV namespace for pod state (lastActivity, pod_url)
+[[kv_namespaces]]
+binding = "MOCAP_KV"
+id = "c0a3d5e3191c424a8e483fbf174a9cc6"
+
+# Cron auto-stop: use a separate Worker (Pages doesn't support cron triggers)
+# See deploy/cloudflare/functions/_scheduled.ts for the logic
+
+# Secrets (set via `wrangler pages secret put`):
+#   RUNPOD_API_KEY  — RunPod API key
+# Note: Pod IDs are now ephemeral and stored in KV, not as secrets

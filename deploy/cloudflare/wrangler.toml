@@ -7,6 +7,11 @@ pages_build_output_dir = "../../web/dist"
 binding = "MOCAP_KV"
 id = "c0a3d5e3191c424a8e483fbf174a9cc6"
 
+# R2 bucket for pipeline results (served without pod running)
+[[r2_buckets]]
+binding = "RESULTS_BUCKET"
+bucket_name = "honeybee"
+
 # Cron auto-stop: use a separate Worker (Pages doesn't support cron triggers)
 # See deploy/cloudflare/functions/_scheduled.ts for the logic
 

@@ -2,6 +2,7 @@
 
 interface Env {
   MOCAP_KV: KVNamespace;
+  RESULTS_BUCKET: R2Bucket;
 }
 
 export const onRequest: PagesFunction<Env> = async (context) => {

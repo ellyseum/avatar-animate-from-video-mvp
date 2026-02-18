@@ -22,10 +22,7 @@ const POD_CONFIG = {
   volumeInGb: 50,
   volumeMountPath: '/workspace',
   ports: '3001/http,22/tcp',
-  env: [
-    { key: 'PIPELINE_MODE', value: 'direct' },
-    { key: 'PREPROCESSOR_MODE', value: 'ffmpeg' },
-  ],
+  env: [] as Array<{ key: string; value: string }>, // populated at runtime with secrets
   gpuCount: 1,
   startJupyter: false,
   startSsh: true,
@@ -60,7 +57,17 @@ async function cleanKv(kv: KVNamespace) {
   ]);
 }
 
+function buildPodEnv(apiKey: string): Array<{ key: string; value: string }> {
+  return [
+    { key: 'PIPELINE_MODE', value: 'direct' },
+    { key: 'PREPROCESSOR_MODE', value: 'ffmpeg' },
+    { key: 'R2_UPLOAD_URL', value: 'https://avatar.ellyseum.dev' },
+    { key: 'R2_UPLOAD_KEY', value: apiKey },
+  ];
+}
+
 async function tryCreatePod(apiKey: string, gpuTypeId: string): Promise<any | null> {
+  const podEnv = buildPodEnv(apiKey);
   const data = await runpodGql(apiKey, `
     mutation {
       podFindAndDeployOnDemand(input: {
@@ -74,7 +81,7 @@ async function tryCreatePod(apiKey: string, gpuTypeId: string): Promise<any | nu
         ports: "${POD_CONFIG.ports}"
         startJupyter: ${POD_CONFIG.startJupyter}
         startSsh: ${POD_CONFIG.startSsh}
-        env: [${POD_CONFIG.env.map(e => `{ key: "${e.key}", value: "${e.value}" }`).join(', ')}]
+        env: [${podEnv.map(e => `{ key: "${e.key}", value: "${e.value}" }`).join(', ')}]
       }) {
         id
         desiredStatus

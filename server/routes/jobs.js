@@ -89,6 +89,11 @@ router.post('/upload', upload.single('video'), async (req, res) => {
 
             jobManager.updateJob(job.id, { status: 'complete', progress: 100 });
             console.log(`[${job.id}] Upload pipeline complete`);
+
+            // Upload results to R2
+            uploadResultsToR2(job.id, dir).catch(err => {
+                console.warn(`[${job.id}] R2 upload failed:`, err.message);
+            });
         } catch (err) {
             console.error(`[${job.id}] Upload pipeline failed:`, err.message);
             jobManager.failJob(job.id, err.message);
@@ -224,6 +229,46 @@ router.delete('/:id', async (req, res) => {
     res.json({ ok: true });
 });
 
+async function uploadResultsToR2(jobId, jobDir) {
+    const uploadUrl = process.env.R2_UPLOAD_URL;
+    const uploadKey = process.env.R2_UPLOAD_KEY;
+    if (!uploadUrl || !uploadKey) {
+        console.log(`[${jobId}] R2 upload skipped (no R2_UPLOAD_URL/R2_UPLOAD_KEY)`);
+        return;
+    }
+
+    const files = ['result.glb', 'comparison.mp4'];
+    for (const filename of files) {
+        const filePath = path.join(jobDir, filename);
+        if (!fs.existsSync(filePath)) continue;
+
+        try {
+            const stat = fs.statSync(filePath);
+            const ext = path.extname(filename);
+            const contentType = ext === '.glb' ? 'model/gltf-binary' : 'video/mp4';
+
+            const res = await fetch(`${uploadUrl}/api/r2/${jobId}/${filename}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${uploadKey}`,
+                    'Content-Type': contentType,
+                    'Content-Length': String(stat.size),
+                },
+                body: fs.createReadStream(filePath),
+                duplex: 'half',
+            });
+
+            if (res.ok) {
+                console.log(`[${jobId}] Uploaded ${filename} to R2 (${(stat.size / 1024 / 1024).toFixed(1)}MB)`);
+            } else {
+                console.warn(`[${jobId}] R2 upload failed for ${filename}: ${res.status} ${await res.text()}`);
+            }
+        } catch (err) {
+            console.warn(`[${jobId}] R2 upload error for ${filename}:`, err.message);
+        }
+    }
+}
+
 async function runPipeline(job) {
     try {
         const dir = await jobManager.ensureJobDir(job.id);
@@ -259,6 +304,11 @@ async function runPipeline(job) {
 
         jobManager.updateJob(job.id, { status: 'complete', progress: 100 });
         console.log(`[${job.id}] Pipeline complete`);
+
+        // Upload results to R2 for serving without the pod
+        uploadResultsToR2(job.id, dir).catch(err => {
+            console.warn(`[${job.id}] R2 upload failed:`, err.message);
+        });
 
     } catch (err) {
         console.error(`[${job.id}] Pipeline failed:`, err.message);

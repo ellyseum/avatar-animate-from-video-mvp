@@ -118,7 +118,19 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       ? Math.floor((Date.now() - idleSince) / 60_000)
       : null;
 
-    return Response.json({ status, url, idleMinutes, gpu });
+    // Include startup timing info for progress display
+    let startElapsedMs: number | null = null;
+    let startStrategy: string | null = null;
+    if (status === 'starting') {
+      const [startTime, strategy] = await Promise.all([
+        env.MOCAP_KV.get('start_time'),
+        env.MOCAP_KV.get('start_strategy'),
+      ]);
+      startElapsedMs = startTime ? Date.now() - parseInt(startTime) : null;
+      startStrategy = strategy;
+    }
+
+    return Response.json({ status, url, idleMinutes, gpu, startElapsedMs, startStrategy });
   } catch (err: any) {
     return Response.json(
       { status: 'error', error: err.message },

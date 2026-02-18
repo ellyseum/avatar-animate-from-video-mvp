@@ -27,4 +27,6 @@ export interface PodState {
   idleMinutes: number | null;
   gpu?: string | null;
   error?: string;
+  startElapsedMs?: number | null;
+  startStrategy?: string | null;
 }

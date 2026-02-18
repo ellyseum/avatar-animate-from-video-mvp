@@ -242,7 +242,6 @@ function App() {
   const isProcessing = job && job.status !== 'complete' && job.status !== 'failed';
   const isComplete = job?.status === 'complete';
   const podReady = pod.status === 'running';
-  const inputDisabled = (IS_DEPLOYED && !podReady) || submitting || !!isProcessing;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -271,12 +270,15 @@ function App() {
         <UrlInput
           onSubmitUrl={handleSubmitUrl}
           onSubmitFile={handleSubmitFile}
-          loading={inputDisabled}
+          loading={submitting || !!isProcessing}
+          podOffline={IS_DEPLOYED && !podReady && !podStarting}
+          podStarting={IS_DEPLOYED && podStarting}
+          onStartPod={handleStartPod}
         />
 
-        {IS_DEPLOYED && !podReady && pod.status !== 'unknown' && (
+        {IS_DEPLOYED && podStarting && (
           <p className="mt-3 text-center text-xs text-[var(--color-text-muted)]">
-            Start the GPU server to submit videos
+            GPU server is booting up — this usually takes 1-4 minutes
           </p>
         )}
 

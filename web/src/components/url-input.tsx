@@ -1,13 +1,16 @@
 import { useRef, useState } from 'react';
-import { Link, Loader2, Upload } from 'lucide-react';
+import { Link, Loader2, Power, Upload } from 'lucide-react';
 
 interface Props {
   onSubmitUrl: (url: string) => void;
   onSubmitFile: (file: File) => void;
   loading: boolean;
+  podOffline?: boolean;
+  podStarting?: boolean;
+  onStartPod?: () => void;
 }
 
-export function UrlInput({ onSubmitUrl, onSubmitFile, loading }: Props) {
+export function UrlInput({ onSubmitUrl, onSubmitFile, loading, podOffline, podStarting, onStartPod }: Props) {
   const [url, setUrl] = useState('');
   const [error, setError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -48,14 +51,34 @@ export function UrlInput({ onSubmitUrl, onSubmitFile, loading }: Props) {
             className="w-full pl-10 pr-4 py-3 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-primary)] transition-colors disabled:opacity-50"
           />
         </div>
-        <button
-          type="submit"
-          disabled={loading || !url.trim()}
-          className="px-6 py-3 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-        >
-          {loading ? <Loader2 size={18} className="animate-spin" /> : null}
-          {loading ? 'Processing...' : 'Animate'}
-        </button>
+        {podOffline ? (
+          <button
+            type="button"
+            onClick={onStartPod}
+            className="px-6 py-3 rounded-lg bg-green-600 hover:bg-green-500 text-white font-medium transition-colors flex items-center gap-2"
+          >
+            <Power size={18} />
+            Start GPU Server
+          </button>
+        ) : podStarting ? (
+          <button
+            type="button"
+            disabled
+            className="px-6 py-3 rounded-lg bg-yellow-600/50 text-yellow-200 font-medium cursor-not-allowed flex items-center gap-2"
+          >
+            <Loader2 size={18} className="animate-spin" />
+            Starting...
+          </button>
+        ) : (
+          <button
+            type="submit"
+            disabled={loading || !url.trim()}
+            className="px-6 py-3 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {loading ? <Loader2 size={18} className="animate-spin" /> : null}
+            {loading ? 'Processing...' : 'Animate'}
+          </button>
+        )}
         <button
           type="button"
           disabled={loading}

@@ -200,7 +200,7 @@ async function runFrankMocapDirect(jobDirAbs) {
             + ' --input_path ' + path.join(jobDirAbs, 'video_preprocessed.mp4')
             + ' --out_dir ' + mocapDir
             + ' --mode full --save_pred_pkl',
-    ], { timeout: 600_000 });
+    ], { timeout: 900_000 }); // 15 min — first run loads models into GPU (~2-3 min overhead)
 
     const renderedDir = await findRenderedDir(mocapDir);
     return renderedDir;
@@ -249,7 +249,7 @@ async function runOverlayRenderDirect(jobDirAbs) {
         '--resolution', resolution,
         '--npz', path.join(jobDirAbs, 'animation.npz'),
         '--translation_scale_x', '1.4',
-    ], { timeout: 600_000 });
+    ], { timeout: 900_000 }); // 15 min — scales with video length + resolution
 }
 
 // ---------------------------------------------------------------------------

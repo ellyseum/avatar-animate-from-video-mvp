@@ -1,0 +1,15 @@
+name = "mocap-auto-stop"
+main = "index.ts"
+compatibility_date = "2024-12-01"
+
+# Run every 5 minutes
+[triggers]
+crons = ["*/5 * * * *"]
+
+# Same KV namespace as the Pages project
+[[kv_namespaces]]
+binding = "MOCAP_KV"
+id = "c0a3d5e3191c424a8e483fbf174a9cc6"
+
+# Secrets (set via `wrangler secret put RUNPOD_API_KEY`):
+#   RUNPOD_API_KEY — RunPod API key

@@ -7,6 +7,9 @@ node_modules/
 *.gltf
 output/
 
+# Keep models directory structure (FBX files are user-provided, not tracked)
+!models/.gitkeep
+
 # Logs
 *.log
 logs/

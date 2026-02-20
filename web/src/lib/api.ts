@@ -51,7 +51,7 @@ export function getComparisonUrl(id: string): string {
   return `${BASE}/jobs/${id}/comparison`;
 }
 
-export type VideoType = 'original' | 'preprocessed' | 'frankmocap' | 'overlay' | 'comparison';
+export type VideoType = 'original' | 'preprocessed' | 'frankmocap' | 'overlay' | 'comparison' | 'overlay-mixamo' | 'comparison-mixamo' | 'triple-comparison' | 'onion-skin';
 
 export function getVideoUrl(id: string, type: VideoType): string {
   return `${BASE}/jobs/${id}/video/${type}`;

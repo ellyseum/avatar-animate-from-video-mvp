@@ -35,7 +35,19 @@ def import_glb(filepath):
     before = set(bpy.data.objects.keys())
     bpy.ops.import_scene.gltf(filepath=filepath)
     after = set(bpy.data.objects.keys())
-    return [bpy.data.objects[n] for n in after - before]
+    imported = [bpy.data.objects[n] for n in after - before]
+
+    # Delete stray meshes not parented to an armature (e.g. Icosphere artifacts)
+    stray_names = set()
+    for o in imported:
+        if o.type == 'MESH' and (o.parent is None or o.parent.type != 'ARMATURE'):
+            stray_names.add(o.name)
+            print(f"  Deleting stray mesh: {o.name} ({len(o.data.vertices)} verts)")
+            bpy.data.objects.remove(o, do_unlink=True)
+    imported = [bpy.data.objects[n] for n in (after - before) - stray_names
+                if n in bpy.data.objects]
+
+    return imported
 
 
 def setup_material(objects):
@@ -54,16 +66,31 @@ def setup_material(objects):
 
 
 def get_scene_bounds(objects):
+    """Get scene bounds from DEFORMED mesh via depsgraph (not rest-pose bound_box).
+
+    bound_box returns rest-pose coordinates which can be wildly different from
+    the animated pose (e.g. SMPL rest-pose center Z = -0.5 vs frame-0 = +0.9).
+    """
+    # Evaluate depsgraph to get actual deformed vertex positions
+    bpy.context.view_layer.update()
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+
     mins = [float('inf')] * 3
     maxs = [float('-inf')] * 3
     for obj in objects:
         if obj.type != 'MESH':
             continue
-        for corner in obj.bound_box:
-            world_co = obj.matrix_world @ Vector(corner)
+        if obj.parent is None or obj.parent.type != 'ARMATURE':
+            continue
+        eval_obj = obj.evaluated_get(depsgraph)
+        mesh = eval_obj.to_mesh()
+        for v in mesh.vertices:
+            world_co = eval_obj.matrix_world @ v.co
             for i in range(3):
                 mins[i] = min(mins[i], world_co[i])
                 maxs[i] = max(maxs[i], world_co[i])
+        eval_obj.to_mesh_clear()
+
     if mins[0] == float('inf'):
         return (0, 0, 0.85), 2.0
     center = tuple((mins[i] + maxs[i]) / 2 for i in range(3))
@@ -101,9 +128,10 @@ def compute_camera_from_npz(npz_path, img_w, img_h):
         vb_cy = (vb_avg[1] + vb_avg[3]) / 2.0
         vb_h = vb_avg[3] - vb_avg[1]  # height in image pixels
 
-        # Rest-pose mesh height in body units (from NPZ joints)
-        joints = d['joints']  # (55, 3) rest-pose
-        mesh_h = joints[:, 1].max() - joints[:, 1].min()  # Y extent in body units
+        # Rest-pose mesh height in Blender units (vertices Y extent in Y-up = Z extent in Blender)
+        # Use vertices, not joints — vertices include skin/hair/feet beyond joint positions
+        verts = d['vertices']  # (V, 3) rest-pose in Y-up
+        mesh_h = verts[:, 1].max() - verts[:, 1].min()  # Y extent = Blender Z height
 
         # Ortho scale: how many body units are visible vertically
         # vb_h pixels = mesh_h body units, full image = img_h pixels
@@ -160,20 +188,74 @@ def compute_camera_from_npz(npz_path, img_w, img_h):
     return ortho_scale, cam_x, cam_z
 
 
-def setup_camera_from_npz(npz_path, center, img_w, img_h, scale_x=1.0):
-    """Create orthographic camera matched to FrankMocap's projection.
+def get_mesh_center_at_frame(objects, frame):
+    """Evaluate depsgraph at a specific frame and return the mesh bbox center."""
+    bpy.context.scene.frame_set(frame)
+    bpy.context.view_layer.update()
+    depsgraph = bpy.context.evaluated_depsgraph_get()
 
-    When scale_x > 1.0, the GLB has amplified horizontal root translation.
-    This adds per-frame camera X keyframes to compensate, so the overlay
-    mesh appears at the original (non-amplified) video position.
+    mins = [float('inf')] * 3
+    maxs = [float('-inf')] * 3
+    for obj in objects:
+        if obj.type != 'MESH':
+            continue
+        if obj.parent is None or obj.parent.type != 'ARMATURE':
+            continue
+        eval_obj = obj.evaluated_get(depsgraph)
+        mesh = eval_obj.to_mesh()
+        for v in mesh.vertices:
+            world_co = eval_obj.matrix_world @ v.co
+            for i in range(3):
+                mins[i] = min(mins[i], world_co[i])
+                maxs[i] = max(maxs[i], world_co[i])
+        eval_obj.to_mesh_clear()
+
+    if mins[0] == float('inf'):
+        return None
+    return tuple((mins[i] + maxs[i]) / 2 for i in range(3))
+
+
+def find_vertex_bbox_npz(npz_path):
+    """Find vertex_bbox_img data. Checks the given NPZ first, then sibling NPZs."""
+    d = np.load(npz_path, allow_pickle=True)
+    if 'vertex_bbox_img' in d:
+        return d['vertex_bbox_img'], d
+
+    # Search sibling NPZ files (e.g. animation.npz may have it)
+    npz_dir = os.path.dirname(npz_path)
+    for name in ['animation.npz', 'animation_v4.npz', 'animation_v3.npz']:
+        candidate = os.path.join(npz_dir, name)
+        if candidate != npz_path and os.path.exists(candidate):
+            cd = np.load(candidate, allow_pickle=True)
+            if 'vertex_bbox_img' in cd:
+                print(f"  Found vertex_bbox_img in sibling: {name}")
+                return cd['vertex_bbox_img'], cd
+    return None, d
+
+
+def setup_camera_from_npz(npz_path, objects, img_w, img_h, scale_x=1.0):
+    """Create orthographic camera matched to FrankMocap's weak perspective.
+
+    Uses per-frame depsgraph evaluation to compute actual mesh center positions,
+    combined with vertex_bbox_img targets for pixel-accurate camera tracking.
+    Works correctly for any mesh (SMPL, Mixamo, etc.) since it measures the
+    actual deformed mesh rather than approximating from root translation.
     """
+    d = np.load(npz_path, allow_pickle=True)
+    vbbox, vbbox_src = find_vertex_bbox_npz(npz_path)
+
+    # Compute base camera params (used as initial values and fallback)
     ortho_scale, cam_x_offset, cam_z_offset = compute_camera_from_npz(
         npz_path, img_w, img_h
     )
 
+    # Get frame 0 center for initial camera position
+    center, _ = get_scene_bounds(objects)
+
     cam_data = bpy.data.cameras.new("Camera")
     cam_data.type = 'ORTHO'
     cam_data.ortho_scale = ortho_scale
+    cam_data.sensor_fit = 'HORIZONTAL'
     cam_data.clip_start = 0.1
     cam_data.clip_end = 100
 
@@ -191,24 +273,83 @@ def setup_camera_from_npz(npz_path, center, img_w, img_h, scale_x=1.0):
 
     bpy.context.scene.camera = cam_obj
 
-    # Per-frame camera tracking to compensate for root translation amplification.
-    # The GLB root moves by root_x * scale_x, but we want overlay to show
-    # the mesh at root_x * 1.0. Camera X shifts by root_x * (scale_x - 1.0).
-    if scale_x != 1.0:
-        d = np.load(npz_path, allow_pickle=True)
-        root_trans = d['root_translation']  # (N, 3) in Y-up: (x, y, z=0)
-        n_frames = root_trans.shape[0]
-        excess_factor = scale_x - 1.0
+    if vbbox is None:
+        print("  WARNING: No vertex_bbox_img found — using static camera")
+        return cam_obj
 
-        # Root X in NPZ Y-up = X in Blender Z-up (unchanged by Y→Z conversion)
-        # The GLB amplifies X by scale_x, so excess motion = root_x * (scale_x - 1)
-        for i in range(n_frames):
-            frame = bpy.context.scene.frame_start + i
-            root_x = root_trans[i, 0]
-            cam_obj.location.x = base_x + root_x * excess_factor
-            cam_obj.keyframe_insert(data_path="location", index=0, frame=frame)
+    n_frames = vbbox.shape[0]
 
-        print(f"  Per-frame camera tracking: {n_frames} keyframes (scale_x={scale_x})")
+    # SMPL rest-pose mesh height (from NPZ vertices) — used for scale computation.
+    # This is always SMPL height regardless of which mesh we're rendering, because
+    # vertex_bbox_img was computed from SMPL vertices.
+    verts_src = vbbox_src['vertices'] if 'vertices' in vbbox_src else d['vertices']
+    mesh_h = verts_src[:, 1].max() - verts_src[:, 1].min()
+
+    # Pre-compute actual mesh centers at each frame via depsgraph evaluation.
+    # This replaces the broken approximation (center_f0 + root_trans_delta)
+    # which can be off by 36+ pixels because root_translation doesn't capture
+    # pose-induced center shifts (leaning, arm extension, jumping).
+    print(f"  Computing per-frame mesh centers ({n_frames} frames)...")
+    mesh_centers = []
+    frame_start = bpy.context.scene.frame_start
+    for i in range(n_frames):
+        frame = frame_start + i
+        mc = get_mesh_center_at_frame(objects, frame)
+        mesh_centers.append(mc)
+        if i % 100 == 0:
+            print(f"    Frame {i}/{n_frames}: center=({mc[0]:.4f}, {mc[2]:.4f})")
+
+    # Keyframe camera per frame
+    for i in range(n_frames):
+        frame = frame_start + i
+        mc = mesh_centers[i]
+        if mc is None:
+            continue
+
+        vb_cx = (vbbox[i, 0] + vbbox[i, 2]) / 2.0
+        vb_cy = (vbbox[i, 1] + vbbox[i, 3]) / 2.0
+        vb_h = vbbox[i, 3] - vbbox[i, 1]
+
+        if vb_h < 10:
+            continue
+
+        # Per-frame ortho_scale from vertex_bbox height
+        visible_h = (img_h / vb_h) * mesh_h
+        frame_ortho = visible_h * img_w / img_h
+        cam_data.ortho_scale = frame_ortho
+        cam_data.keyframe_insert(data_path="ortho_scale", frame=frame)
+
+        visible_w = frame_ortho
+
+        # Camera position: project actual mesh center to vertex_bbox pixel target.
+        # Ortho: pixel_x = img_w/2 + (world_x - cam_x) * img_w / visible_w
+        # Solve for cam_x: cam_x = world_x - (target_px - img_w/2) * visible_w / img_w
+        cam_x = mc[0] - (vb_cx - img_w / 2.0) * visible_w / img_w
+        cam_z = mc[2] + (vb_cy - img_h / 2.0) * visible_h / img_h
+
+        cam_obj.location.x = cam_x
+        cam_obj.keyframe_insert(data_path="location", index=0, frame=frame)
+        cam_obj.location.z = cam_z
+        cam_obj.keyframe_insert(data_path="location", index=2, frame=frame)
+
+    # Set keyframe interpolation to LINEAR for all animation data
+    for ad in [cam_obj.animation_data, cam_data.animation_data]:
+        if ad and ad.action:
+            try:
+                fcs = ad.action.fcurves
+            except AttributeError:
+                # Blender 5.0 layered actions
+                fcs = []
+                for layer in ad.action.layers:
+                    for strip in layer.strips:
+                        for cb in strip.channelbags:
+                            fcs.extend(cb.fcurves)
+            for fc in fcs:
+                for kp in fc.keyframe_points:
+                    kp.interpolation = 'LINEAR'
+
+    print(f"  Per-frame camera tracking: {n_frames} frames "
+          f"(depsgraph mesh center + vertex_bbox_img target)")
 
     return cam_obj
 
@@ -219,6 +360,7 @@ def setup_camera_fallback(center, scene_size, w, h):
     cam_data.type = 'ORTHO'
     aspect_ratio = h / w
     cam_data.ortho_scale = scene_size / (0.65 * aspect_ratio)
+    cam_data.sensor_fit = 'HORIZONTAL'  # ortho_scale = visible width (not height)
     cam_data.clip_start = 0.1
     cam_data.clip_end = 100
 
@@ -234,9 +376,8 @@ def setup_camera_fallback(center, scene_size, w, h):
     return cam_obj
 
 
-def setup_render(w, h):
+def setup_render(w, h, use_eevee=False):
     scene = bpy.context.scene
-    scene.render.engine = 'BLENDER_WORKBENCH'
     scene.render.resolution_x = w
     scene.render.resolution_y = h
     scene.render.resolution_percentage = 100
@@ -244,10 +385,36 @@ def setup_render(w, h):
     scene.render.image_settings.file_format = 'PNG'
     scene.render.image_settings.color_mode = 'RGBA'
 
-    scene.display.shading.light = 'STUDIO'
-    scene.display.shading.color_type = 'MATERIAL'
-    scene.display.shading.show_shadows = True
-    scene.display.shading.shadow_intensity = 0.3
+    if use_eevee:
+        # EEVEE for textured Mixamo models (Workbench can't do PBR textures)
+        try:
+            scene.render.engine = 'BLENDER_EEVEE_NEXT'
+        except TypeError:
+            scene.render.engine = 'BLENDER_EEVEE'
+        try:
+            scene.eevee.taa_render_samples = 16
+        except AttributeError:
+            pass
+
+        # Add key + fill lights so Mixamo characters aren't silhouettes
+        key = bpy.data.lights.new("KeyLight", 'SUN')
+        key.energy = 3.0
+        key_obj = bpy.data.objects.new("KeyLight", key)
+        bpy.context.collection.objects.link(key_obj)
+        key_obj.rotation_euler = (0.8, 0.2, -0.5)  # ~45° from above-front-left
+
+        fill = bpy.data.lights.new("FillLight", 'SUN')
+        fill.energy = 1.5
+        fill_obj = bpy.data.objects.new("FillLight", fill)
+        bpy.context.collection.objects.link(fill_obj)
+        fill_obj.rotation_euler = (1.0, -0.3, 0.8)  # from above-front-right
+    else:
+        # Workbench for fast SMPL overlay rendering
+        scene.render.engine = 'BLENDER_WORKBENCH'
+        scene.display.shading.light = 'STUDIO'
+        scene.display.shading.color_type = 'MATERIAL'
+        scene.display.shading.show_shadows = True
+        scene.display.shading.shadow_intensity = 0.3
 
     world = bpy.data.worlds.new("World")
     scene.world = world
@@ -267,6 +434,8 @@ def parse_args():
                         help="NPZ with cameras/bbox data for matched framing")
     parser.add_argument("--translation_scale_x", type=float, default=1.0,
                         help="GLB root translation X amplification (for camera compensation)")
+    parser.add_argument("--preserve-materials", action="store_true",
+                        help="Keep imported GLB materials (for Mixamo characters)")
     return parser.parse_args(argv)
 
 
@@ -279,6 +448,16 @@ def main():
         print(f"Camera source: {args.npz}")
 
     clear_scene()
+
+    # Set FPS before import — GLB stores time in seconds, so Blender converts
+    # to frames using scene FPS. Must match the animation's original FPS.
+    if args.npz:
+        npz_data = np.load(args.npz, allow_pickle=True)
+        fps = int(npz_data['fps']) if 'fps' in npz_data else 30
+        bpy.context.scene.render.fps = fps
+        bpy.context.scene.render.fps_base = 1.0
+        print(f"Scene FPS set to {fps} (from NPZ)")
+
     imported = import_glb(args.input)
 
     armature = None
@@ -295,14 +474,25 @@ def main():
         bpy.context.scene.frame_end = end
         print(f"Animation: frames {start}-{end}")
 
-    setup_material(imported)
+    if not args.preserve_materials:
+        setup_material(imported)
+    else:
+        # Still apply smooth shading to meshes, but keep their materials
+        for obj in imported:
+            if obj.type == 'MESH':
+                bpy.context.view_layer.objects.active = obj
+                obj.select_set(True)
+                bpy.ops.object.shade_smooth()
+                obj.select_set(False)
+        print("  Preserving original materials")
+
     center, size = get_scene_bounds(imported)
     print(f"Scene center: {center}, size: {size:.2f}")
 
-    setup_render(w, h)
+    setup_render(w, h, use_eevee=args.preserve_materials)
 
     if args.npz and os.path.exists(args.npz):
-        setup_camera_from_npz(args.npz, center, w, h,
+        setup_camera_from_npz(args.npz, imported, w, h,
                               scale_x=args.translation_scale_x)
     else:
         setup_camera_fallback(center, size, w, h)

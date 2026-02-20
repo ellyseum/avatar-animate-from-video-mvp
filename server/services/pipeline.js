@@ -11,6 +11,9 @@ const SMPL_DIR = path.join(PROJECT_ROOT, 'smpl');
 // Pipeline execution mode: 'docker' (default) or 'direct' (RunPod — no Docker-in-Docker)
 const PIPELINE_MODE = process.env.PIPELINE_MODE || 'docker';
 
+// Mixamo character model path (optional — omit for SMPL mesh mode)
+const MODEL_PATH = process.env.MODEL_PATH || null;
+
 // Preprocessor config (env-driven)
 const PREPROCESSOR_MODE = process.env.PREPROCESSOR_MODE || 'docker';
 const PREPROCESSOR_IMAGE = process.env.PREPROCESSOR_IMAGE || 'silhouette-preprocessor';
@@ -215,13 +218,15 @@ async function runPklToNpzDirect(jobDirAbs) {
 }
 
 async function runNpzToGlbDirect(jobDirAbs) {
-    await runCommand('blender', [
+    const args = [
         '-b', '--python', '/app/scripts/npz_to_glb.py', '--',
         '--input', path.join(jobDirAbs, 'animation.npz'),
         '--output', path.join(jobDirAbs, 'result.glb'),
         '--translation_scale_x', '1.4',
         '--translation_scale_y', '1.0',
-    ], { timeout: 120_000 });
+    ];
+    if (MODEL_PATH) args.push('--model', MODEL_PATH);
+    await runCommand('blender', args, { timeout: 120_000 });
 }
 
 async function runOverlayRenderDirect(jobDirAbs) {
@@ -242,14 +247,16 @@ async function runOverlayRenderDirect(jobDirAbs) {
         console.log(`[pipeline] ffprobe failed, using default resolution: ${e.message}`);
     }
 
-    await runCommand('blender', [
+    const overlayArgs = [
         '-b', '--python', '/app/scripts/render_overlay.py', '--',
         '--input', path.join(jobDirAbs, 'result.glb'),
         '--output_dir', overlayDir + '/',
         '--resolution', resolution,
         '--npz', path.join(jobDirAbs, 'animation.npz'),
         '--translation_scale_x', '1.4',
-    ], { timeout: 900_000 }); // 15 min — scales with video length + resolution
+    ];
+    if (MODEL_PATH) overlayArgs.push('--preserve-materials');
+    await runCommand('blender', overlayArgs, { timeout: 900_000 }); // 15 min — scales with video length + resolution
 }
 
 // ---------------------------------------------------------------------------
@@ -355,17 +362,27 @@ async function runNpzToGlb(jobDirAbs) {
     // Use Blender passthrough mode (-b --python ... --) instead of --script
     // because the entrypoint's --script mode has a $@ bug that leaks the
     // script name into Blender's -- args
-    await runDocker([
+    const dockerArgs = [
         'run', '--rm',
         '-v', `${jobDirAbs}:/workspace`,
         '-v', `${npzToGlbScript}:/workspace/npz_to_glb.py:ro`,
+    ];
+    // Mount model file if retargeting to a Mixamo character
+    if (MODEL_PATH) {
+        const modelAbsPath = path.resolve(MODEL_PATH);
+        dockerArgs.push('-v', `${modelAbsPath}:/workspace/model.fbx:ro`);
+    }
+    dockerArgs.push(
         'blender-headless',
         '-b', '--python', '/workspace/npz_to_glb.py', '--',
         '--input', '/workspace/animation.npz',
         '--output', '/workspace/result.glb',
         '--translation_scale_x', '1.4',
         '--translation_scale_y', '1.0',
-    ], { timeout: 120_000 });
+    );
+    if (MODEL_PATH) dockerArgs.push('--model', '/workspace/model.fbx');
+
+    await runDocker(dockerArgs, { timeout: 120_000 });
 }
 
 async function runOverlayRender(jobDirAbs) {
@@ -392,7 +409,7 @@ async function runOverlayRender(jobDirAbs) {
         console.log(`[pipeline] ffprobe failed, using default resolution: ${e.message}`);
     }
 
-    await runDocker([
+    const overlayDockerArgs = [
         'run', '--rm',
         '-v', `${jobDirAbs}:/workspace`,
         '-v', `${renderScript}:/workspace/render_overlay.py:ro`,
@@ -403,7 +420,10 @@ async function runOverlayRender(jobDirAbs) {
         '--resolution', resolution,
         '--npz', '/workspace/animation.npz',
         '--translation_scale_x', '1.4',
-    ], { timeout: 600_000 });
+    ];
+    if (MODEL_PATH) overlayDockerArgs.push('--preserve-materials');
+
+    await runDocker(overlayDockerArgs, { timeout: 600_000 });
 }
 
 async function buildComparisonVideo(jobDirAbs) {

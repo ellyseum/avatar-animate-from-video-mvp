@@ -186,6 +186,10 @@ const VIDEO_MAP = {
     frankmocap: 'frankmocap.mp4',
     overlay: 'overlay.mp4',
     comparison: 'comparison.mp4',
+    'overlay-mixamo': 'overlay_mixamo.mp4',
+    'comparison-mixamo': 'comparison_mixamo.mp4',
+    'triple-comparison': 'triple_comparison.mp4',
+    'onion-skin': 'onion_skin.mp4',
 };
 
 router.get('/:id/video/:type', (req, res) => {

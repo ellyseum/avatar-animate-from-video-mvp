@@ -80,76 +80,42 @@ function Room() {
   const D = 8;
   const mirrorW = 1.8;
   const mirrorH = H - 0.2;
-  const mirrorInset = 0.01; // slight inset from wall to avoid z-fighting
+  const mirrorInset = 0.01;
 
   return (
     <group>
-{/* Back wall */}
       <mesh position={[0, H / 2, -D / 2]} receiveShadow>
         <planeGeometry args={[W, H]} />
         <meshStandardMaterial map={wallTex} roughness={0.85} side={FrontSide} />
       </mesh>
-
-      {/* Front wall */}
       <mesh position={[0, H / 2, D / 2]} rotation={[0, Math.PI, 0]} receiveShadow>
         <planeGeometry args={[W, H]} />
         <meshStandardMaterial map={wallTex} roughness={0.85} side={FrontSide} />
       </mesh>
-
-      {/* Left wall */}
       <mesh position={[-W / 2, H / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
         <planeGeometry args={[D, H]} />
         <meshStandardMaterial map={wallTex} roughness={0.85} side={FrontSide} />
       </mesh>
-
-      {/* Right wall */}
       <mesh position={[W / 2, H / 2, 0]} rotation={[0, -Math.PI / 2, 0]} receiveShadow>
         <planeGeometry args={[D, H]} />
         <meshStandardMaterial map={wallTex} roughness={0.85} side={FrontSide} />
       </mesh>
 
-      {/* === Mirrors (one per wall, floor-to-ceiling) === */}
-      {/* Back wall mirror */}
-      <Mirror
-        position={[0, mirrorH / 2 + 0.1, -D / 2 + mirrorInset]}
-        rotation={[0, 0, 0]}
-        width={mirrorW}
-        height={mirrorH}
-      />
-      {/* Front wall mirror */}
-      <Mirror
-        position={[0, mirrorH / 2 + 0.1, D / 2 - mirrorInset]}
-        rotation={[0, Math.PI, 0]}
-        width={mirrorW}
-        height={mirrorH}
-      />
-      {/* Left wall mirror */}
-      <Mirror
-        position={[-W / 2 + mirrorInset, mirrorH / 2 + 0.1, 0]}
-        rotation={[0, Math.PI / 2, 0]}
-        width={mirrorW}
-        height={mirrorH}
-      />
-      {/* Right wall mirror */}
-      <Mirror
-        position={[W / 2 - mirrorInset, mirrorH / 2 + 0.1, 0]}
-        rotation={[0, -Math.PI / 2, 0]}
-        width={mirrorW}
-        height={mirrorH}
-      />
+      <Mirror position={[0, mirrorH / 2 + 0.1, -D / 2 + mirrorInset]} rotation={[0, 0, 0]} width={mirrorW} height={mirrorH} />
+      <Mirror position={[0, mirrorH / 2 + 0.1, D / 2 - mirrorInset]} rotation={[0, Math.PI, 0]} width={mirrorW} height={mirrorH} />
+      <Mirror position={[-W / 2 + mirrorInset, mirrorH / 2 + 0.1, 0]} rotation={[0, Math.PI / 2, 0]} width={mirrorW} height={mirrorH} />
+      <Mirror position={[W / 2 - mirrorInset, mirrorH / 2 + 0.1, 0]} rotation={[0, -Math.PI / 2, 0]} width={mirrorW} height={mirrorH} />
 
-      {/* Wall-mounted point lights */}
       <pointLight position={[0, H - 0.5, -D / 2 + 0.3]} intensity={3} distance={6} color="#e8e0d8" castShadow />
       <pointLight position={[0, H - 0.5, D / 2 - 0.3]} intensity={3} distance={6} color="#e8e0d8" castShadow />
       <pointLight position={[-W / 2 + 0.3, H - 0.5, 0]} intensity={3} distance={6} color="#e8e0d8" castShadow />
       <pointLight position={[W / 2 - 0.3, H - 0.5, 0]} intensity={3} distance={6} color="#e8e0d8" castShadow />
-
     </group>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Model (animated GLB) — light teal + fresnel rim
+// Model (animated GLB)
 // ---------------------------------------------------------------------------
 
 interface ModelHandle {
@@ -183,36 +149,55 @@ const Model = forwardRef<ModelHandle, ModelProps>(
       return -box.min.y;
     }, [gltf.scene]);
 
-    // Apply light teal material + fresnel rim glow
+    // Detect if GLB has real textures (Mixamo character) or is untextured (SMPL)
+    const hasTextures = useMemo(() => {
+      let found = false;
+      gltf.scene.traverse((child: any) => {
+        if (!child.isMesh || found) return;
+        const mat = child.material;
+        if (mat && (mat.map || mat.normalMap || mat.emissiveMap || mat.aoMap)) {
+          found = true;
+        }
+      });
+      return found;
+    }, [gltf.scene]);
+
+    // Apply materials: keep originals for textured models, teal for SMPL
     useEffect(() => {
       gltf.scene.traverse((child: any) => {
         if (!child.isMesh) return;
         child.castShadow = true;
         child.receiveShadow = true;
 
-        const mat = new MeshPhysicalMaterial({
-          color: '#45b8b0',
-          roughness: 0.35,
-          metalness: 0.08,
-          clearcoat: 0.4,
-          clearcoatRoughness: 0.3,
-          envMapIntensity: 1.2,
-        });
+        if (hasTextures) {
+          if (child.material) {
+            child.material.envMapIntensity = 0.8;
+          }
+        } else {
+          const mat = new MeshPhysicalMaterial({
+            color: '#45b8b0',
+            roughness: 0.35,
+            metalness: 0.08,
+            clearcoat: 0.4,
+            clearcoatRoughness: 0.3,
+            envMapIntensity: 1.2,
+          });
 
-        mat.onBeforeCompile = (shader) => {
-          shader.fragmentShader = shader.fragmentShader.replace(
-            '#include <emissivemap_fragment>',
-            `#include <emissivemap_fragment>
-            vec3 viewDir = normalize(vViewPosition);
-            vec3 worldNormal = normalize((vec4(normal, 0.0) * viewMatrix).xyz);
-            float fresnel = pow(1.0 - abs(dot(worldNormal, viewDir)), 3.0);
-            totalEmissiveRadiance += vec3(0.3, 0.8, 0.75) * fresnel * 0.5;`
-          );
-        };
+          mat.onBeforeCompile = (shader) => {
+            shader.fragmentShader = shader.fragmentShader.replace(
+              '#include <emissivemap_fragment>',
+              `#include <emissivemap_fragment>
+              vec3 viewDir = normalize(vViewPosition);
+              vec3 worldNormal = normalize((vec4(normal, 0.0) * viewMatrix).xyz);
+              float fresnel = pow(1.0 - abs(dot(worldNormal, viewDir)), 3.0);
+              totalEmissiveRadiance += vec3(0.3, 0.8, 0.75) * fresnel * 0.5;`
+            );
+          };
 
-        child.material = mat;
+          child.material = mat;
+        }
       });
-    }, [gltf.scene]);
+    }, [gltf.scene, hasTextures]);
 
     useEffect(() => {
       if (!clip) return;
@@ -232,8 +217,6 @@ const Model = forwardRef<ModelHandle, ModelProps>(
     useImperativeHandle(ref, () => ({
       seek: (time: number) => {
         if (!mixerRef.current) return;
-        // setTime uses update(delta) internally, which is scaled by timeScale.
-        // When paused (timeScale=0), seek would be a no-op. Force it through.
         const prevScale = mixerRef.current.timeScale;
         mixerRef.current.timeScale = 1;
         mixerRef.current.setTime(time);
@@ -265,7 +248,7 @@ const Model = forwardRef<ModelHandle, ModelProps>(
 // Viewer wrapper
 // ---------------------------------------------------------------------------
 
-export function ModelViewer({ glbUrl }: { glbUrl: string }) {
+export function ModelViewer({ glbUrl, scene = true }: { glbUrl: string; scene?: boolean }) {
   const modelRef = useRef<ModelHandle>(null);
   const [playing, setPlaying] = useState(true);
   const [time, setTime] = useState(0);
@@ -284,56 +267,56 @@ export function ModelViewer({ glbUrl }: { glbUrl: string }) {
       <div className="bg-[var(--color-surface)] rounded-lg border border-[var(--color-border)] overflow-hidden">
         <div className="w-full aspect-[4/3]">
           <Canvas
-            shadows
+            shadows={scene}
             camera={{ position: [0, 1.2, 4], fov: 45 }}
-            gl={{ antialias: true, toneMappingExposure: 0.9 }}
+            gl={{ antialias: true, ...(scene ? { toneMappingExposure: 0.9 } : {}) }}
           >
-            {/* HDR environment — skybox + reflections */}
-            <Environment
-              preset="warehouse"
-              background
-              backgroundBlurriness={0.05}
-              environmentIntensity={0.6}
-            />
-
-            {/* Ambient fill */}
-            <ambientLight intensity={0.1} />
-
-            {/* Sun 1: key — 75° from horizontal, front-right */}
-            <directionalLight
-              position={[1, 5, 2]}
-              intensity={0.5}
-              castShadow
-              shadow-mapSize-width={2048}
-              shadow-mapSize-height={2048}
-              shadow-camera-near={0.5}
-              shadow-camera-far={15}
-              shadow-camera-left={-5}
-              shadow-camera-right={5}
-              shadow-camera-top={5}
-              shadow-camera-bottom={-5}
-              shadow-bias={-0.001}
-            />
-
-            {/* Sun 2: reverse — 75° from horizontal, back-left */}
-            <directionalLight
-              position={[-1, 5, -2]}
-              intensity={0.3}
-              castShadow
-              shadow-mapSize-width={1024}
-              shadow-mapSize-height={1024}
-              shadow-camera-near={0.5}
-              shadow-camera-far={15}
-              shadow-camera-left={-5}
-              shadow-camera-right={5}
-              shadow-camera-top={5}
-              shadow-camera-bottom={-5}
-            />
-
-            {/* Sun 3: under-fill from below */}
-            <directionalLight position={[0.5, -3, 1]} intensity={0.1} />
-
-            <Room />
+            {scene ? (
+              <>
+                <Environment
+                  preset="warehouse"
+                  background
+                  backgroundBlurriness={0.05}
+                  environmentIntensity={0.6}
+                />
+                <ambientLight intensity={0.1} />
+                <directionalLight
+                  position={[1, 5, 2]}
+                  intensity={0.5}
+                  castShadow
+                  shadow-mapSize-width={2048}
+                  shadow-mapSize-height={2048}
+                  shadow-camera-near={0.5}
+                  shadow-camera-far={15}
+                  shadow-camera-left={-5}
+                  shadow-camera-right={5}
+                  shadow-camera-top={5}
+                  shadow-camera-bottom={-5}
+                  shadow-bias={-0.001}
+                />
+                <directionalLight
+                  position={[-1, 5, -2]}
+                  intensity={0.3}
+                  castShadow
+                  shadow-mapSize-width={1024}
+                  shadow-mapSize-height={1024}
+                  shadow-camera-near={0.5}
+                  shadow-camera-far={15}
+                  shadow-camera-left={-5}
+                  shadow-camera-right={5}
+                  shadow-camera-top={5}
+                  shadow-camera-bottom={-5}
+                />
+                <directionalLight position={[0.5, -3, 1]} intensity={0.1} />
+                <Room />
+              </>
+            ) : (
+              <>
+                <ambientLight intensity={0.6} />
+                <directionalLight position={[2, 4, 3]} intensity={0.8} />
+                <directionalLight position={[-1, 3, -2]} intensity={0.3} />
+              </>
+            )}
 
             <Model
               ref={modelRef}

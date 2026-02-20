@@ -63,6 +63,10 @@ const VIDEO_PANELS: { type: VideoType; label: string }[] = [
   { type: 'frankmocap', label: 'FrankMocap' },
   { type: 'overlay', label: 'Overlay' },
   { type: 'comparison', label: 'Comparison' },
+  { type: 'overlay-mixamo', label: 'Overlay (Mixamo)' },
+  { type: 'comparison-mixamo', label: 'Comparison (Mixamo)' },
+  { type: 'triple-comparison', label: 'Triple Compare' },
+  { type: 'onion-skin', label: 'Onion Skin' },
 ];
 
 function ResultsView({ jobId }: { jobId: string }) {
@@ -72,7 +76,7 @@ function ResultsView({ jobId }: { jobId: string }) {
   // Probe which videos exist for this job
   useEffect(() => {
     syncRef.current = [];
-    const allTypes: VideoType[] = ['original', 'preprocessed', 'frankmocap', 'overlay', 'comparison'];
+    const allTypes: VideoType[] = ['original', 'preprocessed', 'frankmocap', 'overlay', 'comparison', 'overlay-mixamo', 'comparison-mixamo', 'triple-comparison', 'onion-skin'];
     Promise.all(
       allTypes.map(async (type) => {
         try {
